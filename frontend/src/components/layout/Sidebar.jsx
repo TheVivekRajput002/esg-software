@@ -70,7 +70,7 @@ const Sidebar = ({ isOpen, onClose }) => {
 
           <NavLink to="/submissions" className={linkClass} onClick={onClose}>
             <UploadCloud className="w-4 h-4 shrink-0" />
-            <span className="flex-1">Data Collection</span>
+            <span className="flex-1">Submission</span>
           </NavLink>
 
           <NavLink to="/analytics" className={linkClass} onClick={onClose}>

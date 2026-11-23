@@ -294,7 +294,7 @@ const DataCollection = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-[var(--border)]">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-[var(--text-main)]">
-            ESG Data Collection & Submissions
+            ESG Submissions
           </h1>
           <p className="text-xs text-[var(--text-muted)] mt-1">
             Submit, track, validate, and audit periodic environmental, social, and governance disclosures.
