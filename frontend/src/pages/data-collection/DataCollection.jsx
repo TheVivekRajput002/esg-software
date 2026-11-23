@@ -34,6 +34,7 @@ const DataCollection = () => {
   // Modals state
   const [isNewModalOpen, setIsNewModalOpen] = useState(false);
   const [editingSubmissionId, setEditingSubmissionId] = useState(null);
+  const [correctionReason, setCorrectionReason] = useState('');
   const [selectedSubmission, setSelectedSubmission] = useState(null);
   const [submissionDetails, setSubmissionDetails] = useState(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
@@ -147,6 +148,7 @@ const DataCollection = () => {
 
   const handleOpenNewModal = () => {
     setEditingSubmissionId(null);
+    setCorrectionReason('');
     setFormHeader({
       submissionName: '',
       reportingPeriodId: periods.find(p => p.isCurrent)?._id || (periods[0]?._id || ''),
@@ -166,6 +168,7 @@ const DataCollection = () => {
         const sub = res.data.data.submission;
         const items = res.data.data.items || [];
         setEditingSubmissionId(sub._id);
+        setCorrectionReason(sub.rejectionReason || '');
         setFormHeader({
           submissionName: sub.submissionName || '',
           reportingPeriodId: sub.reportingPeriodId?._id || sub.reportingPeriodId || '',
@@ -509,6 +512,7 @@ const DataCollection = () => {
                 onClick={() => {
                   setIsNewModalOpen(false);
                   setEditingSubmissionId(null);
+                  setCorrectionReason('');
                 }}
                 className="p-1 rounded-lg text-[var(--text-muted)] hover:bg-[var(--surface-high)]"
               >
@@ -518,6 +522,16 @@ const DataCollection = () => {
 
             {/* Modal Body */}
             <form onSubmit={handleSubmitFinal} className="p-5 overflow-y-auto flex-1 flex flex-col gap-4 text-xs">
+              {correctionReason && (
+                <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 flex items-start gap-2.5 shadow-xs">
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
+                  <div>
+                    <div className="font-bold text-xs">Validator Correction Note:</div>
+                    <div className="text-xs mt-0.5 text-amber-800 leading-relaxed">{correctionReason}</div>
+                  </div>
+                </div>
+              )}
+
               {formErrors && (
                 <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4 shrink-0" />
@@ -708,6 +722,7 @@ const DataCollection = () => {
                   onClick={() => {
                     setIsNewModalOpen(false);
                     setEditingSubmissionId(null);
+                    setCorrectionReason('');
                   }}
                   className="px-4 py-2 rounded-lg border border-[var(--border)] text-xs font-semibold hover:bg-[var(--surface-container)] text-[var(--text-muted)]"
                 >

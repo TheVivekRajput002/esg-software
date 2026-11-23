@@ -630,14 +630,16 @@ const Validation = () => {
 
             {/* Modal Footer */}
             <div className="p-4 border-t border-[var(--border)] bg-[var(--surface)] flex items-center justify-between gap-3">
-              <button
-                type="button"
-                onClick={() => setIsFlagModalOpen(true)}
-                className="px-3.5 py-2 rounded-lg border border-red-300 bg-red-50 text-red-700 text-xs font-semibold hover:bg-red-100 transition-colors flex items-center gap-1.5"
-              >
-                <AlertTriangle className="w-3.5 h-3.5" />
-                <span>Flag for Correction</span>
-              </button>
+              {canValidate ? (
+                <button
+                  type="button"
+                  onClick={() => setIsFlagModalOpen(true)}
+                  className="px-3.5 py-2 rounded-lg border border-red-300 bg-red-50 text-red-700 text-xs font-semibold hover:bg-red-100 transition-colors flex items-center gap-1.5"
+                >
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  <span>Flag for Correction</span>
+                </button>
+              ) : <div />}
 
               <div className="flex items-center gap-2">
                 <button
