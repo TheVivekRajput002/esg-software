@@ -1,0 +1,91 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Default: Crimson ESG Theme */
+  --primary: #dc2626;
+  --primary-hover: #b91c1c;
+  --primary-light: #fee2e2;
+  --primary-text: #ffffff;
+  
+  --background: #f8fafc;
+  --surface: #ffffff;
+  --surface-container: #f1f5f9;
+  --surface-high: #e2e8f0;
+  --surface-lowest: #ffffff;
+  --border: #e2e8f0;
+  
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  
+  --success: #059669;
+  --warning: #d97706;
+  --error: #dc2626;
+  --info: #2563eb;
+}
+
+/* Theme: Red Pulse Theme (from prototype 2) */
+[data-theme='red_pulse'] {
+  --primary: #dc2626;
+  --primary-hover: #b91c1c;
+  --primary-light: #fee2e2;
+  --primary-text: #ffffff;
+  
+  --background: #f8fafc;
+  --surface: #ffffff;
+  --surface-container: #f1f5f9;
+  --surface-high: #e2e8f0;
+  --surface-lowest: #ffffff;
+  --border: #e2e8f0;
+  
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+}
+
+/* Theme: Slate Minimalist Theme */
+[data-theme='slate'] {
+  --primary: #0f766e;
+  --primary-hover: #115e59;
+  --primary-light: #ccfbf1;
+  --primary-text: #ffffff;
+  
+  --background: #f8fafc;
+  --surface: #ffffff;
+  --surface-container: #f1f5f9;
+  --surface-high: #e2e8f0;
+  --surface-lowest: #ffffff;
+  --border: #e2e8f0;
+  
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+}
+
+/* Dark Mode support */
+.dark {
+  --background: #090d16;
+  --surface: #0f172a;
+  --surface-container: #1e293b;
+  --surface-high: #334155;
+  --surface-lowest: #020617;
+  --border: #1e293b;
+  
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+}
+
+/* Custom neat scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--surface-high);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
