@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const ValidationRule = require('../models/ValidationRule');
 const ValidationResult = require('../models/ValidationResult');
 const EsgSubmission = require('../models/EsgSubmission');
@@ -94,6 +95,10 @@ const getValidationQueue = async (req, res, next) => {
 // @route   GET /api/v1/validation/submission/:id
 const getSubmissionForValidation = async (req, res, next) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ success: false, message: 'Invalid submission ID format' });
+    }
+
     const submission = await EsgSubmission.findById(req.params.id)
       .populate('submittedBy', 'name email')
       .populate('validatedBy', 'name email')
@@ -123,6 +128,10 @@ const getSubmissionForValidation = async (req, res, next) => {
 // @route   POST /api/v1/validation/submission/:id/confirm
 const confirmSubmissionValidation = async (req, res, next) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ success: false, message: 'Invalid submission ID format' });
+    }
+
     const submission = await EsgSubmission.findById(req.params.id);
     if (!submission) {
       return res.status(404).json({ success: false, message: 'Submission not found' });
@@ -176,6 +185,10 @@ const confirmSubmissionValidation = async (req, res, next) => {
 // @route   POST /api/v1/validation/submission/:id/flag
 const flagSubmissionCorrection = async (req, res, next) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ success: false, message: 'Invalid submission ID format' });
+    }
+
     const { reason = '' } = req.body;
     if (!reason.trim()) {
       return res.status(400).json({ success: false, message: 'Reason for flagging correction is required' });

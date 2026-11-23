@@ -141,7 +141,7 @@ const Validation = () => {
 
   // Flag and return submission for correction
   const handleOpenFlagModal = (sub = null) => {
-    if (sub) {
+    if (sub && sub._id) {
       setActiveSubmission(sub);
     }
     // Close the inspection review window so it doesn't linger behind
@@ -159,7 +159,7 @@ const Validation = () => {
   };
 
   const handleFlagForCorrection = async () => {
-    if (!activeSubmission || !flagReason.trim()) {
+    if (!activeSubmission?._id || !flagReason.trim()) {
       alert('Please enter a reason or note explaining why correction is required.');
       return;
     }
@@ -651,7 +651,7 @@ const Validation = () => {
               {canValidate ? (
                 <button
                   type="button"
-                  onClick={handleOpenFlagModal}
+                  onClick={() => handleOpenFlagModal()}
                   className="px-3.5 py-2 rounded-lg border border-red-300 bg-red-50 text-red-700 text-xs font-semibold hover:bg-red-100 transition-colors flex items-center gap-1.5"
                 >
                   <AlertTriangle className="w-3.5 h-3.5" />
