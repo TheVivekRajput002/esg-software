@@ -140,6 +140,24 @@ const Validation = () => {
   };
 
   // Flag and return submission for correction
+  const handleOpenFlagModal = (sub = null) => {
+    if (sub) {
+      setActiveSubmission(sub);
+    }
+    // Close the inspection review window so it doesn't linger behind
+    setIsModalOpen(false);
+    setIsFlagModalOpen(true);
+  };
+
+  const handleCancelFlagModal = () => {
+    setIsFlagModalOpen(false);
+    setFlagReason('');
+    // If we were inspecting a submission, return back to review window
+    if (activeSubmission) {
+      setIsModalOpen(true);
+    }
+  };
+
   const handleFlagForCorrection = async () => {
     if (!activeSubmission || !flagReason.trim()) {
       alert('Please enter a reason or note explaining why correction is required.');
@@ -633,7 +651,7 @@ const Validation = () => {
               {canValidate ? (
                 <button
                   type="button"
-                  onClick={() => setIsFlagModalOpen(true)}
+                  onClick={handleOpenFlagModal}
                   className="px-3.5 py-2 rounded-lg border border-red-300 bg-red-50 text-red-700 text-xs font-semibold hover:bg-red-100 transition-colors flex items-center gap-1.5"
                 >
                   <AlertTriangle className="w-3.5 h-3.5" />
@@ -674,11 +692,18 @@ const Validation = () => {
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-60">
           <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl w-full max-w-md p-6 shadow-2xl">
             <div className="flex items-center justify-between pb-3 border-b border-[var(--border)] mb-4">
-              <h3 className="text-sm font-bold text-red-700 flex items-center gap-1.5">
-                <AlertTriangle className="w-4 h-4" />
-                Return Submission for Correction
-              </h3>
-              <button onClick={() => setIsFlagModalOpen(false)} className="text-[var(--text-muted)]">
+              <div>
+                <h3 className="text-sm font-bold text-red-700 flex items-center gap-1.5">
+                  <AlertTriangle className="w-4 h-4" />
+                  Return Submission for Correction
+                </h3>
+                {activeSubmission && (
+                  <p className="text-[11px] font-semibold text-[var(--text-main)] mt-0.5">
+                    Batch: {activeSubmission.submissionName}
+                  </p>
+                )}
+              </div>
+              <button onClick={handleCancelFlagModal} className="text-[var(--text-muted)] hover:text-[var(--text-main)]">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -699,7 +724,7 @@ const Validation = () => {
             <div className="flex items-center justify-end gap-2">
               <button
                 type="button"
-                onClick={() => setIsFlagModalOpen(false)}
+                onClick={handleCancelFlagModal}
                 className="px-3.5 py-1.5 rounded-lg border text-xs font-semibold hover:bg-[var(--surface-container)]"
               >
                 Cancel

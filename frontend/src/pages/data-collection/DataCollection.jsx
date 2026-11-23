@@ -939,6 +939,7 @@ const DataCollection = () => {
                   <button
                     onClick={() => {
                       setSelectedSubmission(submissionDetails.submission);
+                      setIsDetailsOpen(false);
                       setIsRejectModalOpen(true);
                     }}
                     className="px-3.5 py-1.5 rounded-lg border border-red-300 bg-red-50 text-red-700 hover:bg-red-100 text-xs font-semibold flex items-center gap-1.5"
@@ -984,7 +985,10 @@ const DataCollection = () => {
             <div className="flex items-center justify-end gap-2">
               <button
                 type="button"
-                onClick={() => setIsRejectModalOpen(false)}
+                onClick={() => {
+                  setIsRejectModalOpen(false);
+                  setIsDetailsOpen(true);
+                }}
                 className="px-3 py-1.5 rounded-lg border text-xs font-semibold hover:bg-[var(--surface-container)]"
               >
                 Cancel
