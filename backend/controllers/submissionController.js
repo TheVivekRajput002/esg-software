@@ -201,24 +201,58 @@ const updateSubmission = async (req, res, next) => {
       });
     }
 
-    const { submissionName, description, source } = req.body;
+    const { submissionName, reportingPeriodId, description, source, items, isDraft } = req.body;
     const prev = { ...submission.toObject() };
 
-    if (submissionName) submission.submissionName = submissionName;
+    if (submissionName) submission.submissionName = submissionName.trim();
+    if (reportingPeriodId) submission.reportingPeriodId = reportingPeriodId;
     if (description !== undefined) submission.description = description;
     if (source) submission.source = source;
 
+    const isSubmitting = isDraft === false || isDraft === 'false';
+    if (isSubmitting) {
+      submission.status = 'submitted';
+      submission.submittedAt = new Date();
+      submission.validationStatus = 'pending';
+    }
+
     await submission.save();
+
+    // If items are provided, synchronize line items
+    if (Array.isArray(items)) {
+      await EsgData.deleteMany({ submissionId: submission._id });
+
+      const itemStatus = isSubmitting ? 'submitted' : 'draft';
+      const dataRecords = items
+        .filter(item => item.metricId)
+        .map(item => ({
+          submissionId: submission._id,
+          organizationId: submission.organizationId,
+          reportingPeriodId: submission.reportingPeriodId,
+          submittedBy: req.user._id,
+          metricId: item.metricId,
+          categoryId: item.categoryId,
+          value: Number(item.value) || 0,
+          unit: item.unit,
+          description: item.description || '',
+          evidenceFiles: item.evidenceFiles || [],
+          status: itemStatus
+        }));
+
+      if (dataRecords.length > 0) {
+        await EsgData.insertMany(dataRecords);
+      }
+    }
 
     await logAuditAction({
       organizationId: submission.organizationId,
       actorId: req.user._id,
       resourceType: 'EsgSubmission',
       resourceId: submission._id,
-      action: 'UPDATE',
+      action: isSubmitting ? 'SUBMITTED' : 'UPDATE',
       previousValue: prev,
       newValue: submission.toObject(),
-      reason: 'Draft details updated'
+      reason: isSubmitting ? 'Draft finalized and submitted for validation' : 'Draft submission updated'
     });
 
     res.json({ success: true, data: submission });

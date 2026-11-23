@@ -15,7 +15,8 @@ import {
   Eye,
   RefreshCw,
   FileCheck,
-  ShieldCheck
+  ShieldCheck,
+  Pencil
 } from 'lucide-react';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
@@ -32,6 +33,7 @@ const DataCollection = () => {
 
   // Modals state
   const [isNewModalOpen, setIsNewModalOpen] = useState(false);
+  const [editingSubmissionId, setEditingSubmissionId] = useState(null);
   const [selectedSubmission, setSelectedSubmission] = useState(null);
   const [submissionDetails, setSubmissionDetails] = useState(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
@@ -143,6 +145,57 @@ const DataCollection = () => {
     }
   };
 
+  const handleOpenNewModal = () => {
+    setEditingSubmissionId(null);
+    setFormHeader({
+      submissionName: '',
+      reportingPeriodId: periods.find(p => p.isCurrent)?._id || (periods[0]?._id || ''),
+      source: 'Manual Entry',
+      description: '',
+      isDraft: false
+    });
+    setFormItems([{ metricId: '', categoryId: '', value: '', unit: '', description: '', evidenceFiles: [] }]);
+    setFormErrors('');
+    setIsNewModalOpen(true);
+  };
+
+  const handleOpenEditDraft = async (subId) => {
+    try {
+      const res = await api.get(`/submissions/${subId}`);
+      if (res.data.success) {
+        const sub = res.data.data.submission;
+        const items = res.data.data.items || [];
+        setEditingSubmissionId(sub._id);
+        setFormHeader({
+          submissionName: sub.submissionName || '',
+          reportingPeriodId: sub.reportingPeriodId?._id || sub.reportingPeriodId || '',
+          source: sub.source || 'Manual Entry',
+          description: sub.description || '',
+          isDraft: true
+        });
+        if (items.length > 0) {
+          setFormItems(
+            items.map((it) => ({
+              metricId: it.metricId?._id || it.metricId || '',
+              categoryId: it.categoryId?._id || it.categoryId || it.metricId?.categoryId?._id || it.metricId?.categoryId || '',
+              value: it.value !== undefined && it.value !== null ? String(it.value) : '',
+              unit: it.unit || it.metricId?.unit || '',
+              description: it.description || '',
+              evidenceFiles: Array.isArray(it.evidenceFiles) ? it.evidenceFiles : []
+            }))
+          );
+        } else {
+          setFormItems([{ metricId: '', categoryId: '', value: '', unit: '', description: '', evidenceFiles: [] }]);
+        }
+        setFormErrors('');
+        setIsDetailsOpen(false);
+        setIsNewModalOpen(true);
+      }
+    } catch (err) {
+      alert('Failed to load draft submission for editing');
+    }
+  };
+
   // Plain JS validation before submit
   const handleCreateSubmission = async (e, asDraft = false) => {
     if (e && e.preventDefault) e.preventDefault();
@@ -162,6 +215,10 @@ const DataCollection = () => {
 
     // When submitting for validation (not saving as draft), validate all metric items
     if (!isSavingAsDraft) {
+      if (formItems.length === 0 || !formItems.some(it => it.metricId)) {
+        setFormErrors('Please select at least one metric line item before submitting.');
+        return;
+      }
       for (let i = 0; i < formItems.length; i++) {
         const it = formItems[i];
         if (!it.metricId) {
@@ -191,9 +248,16 @@ const DataCollection = () => {
           }))
       };
 
-      const res = await api.post('/submissions', payload);
+      let res;
+      if (editingSubmissionId) {
+        res = await api.patch(`/submissions/${editingSubmissionId}`, payload);
+      } else {
+        res = await api.post('/submissions', payload);
+      }
+
       if (res.data.success) {
         setIsNewModalOpen(false);
+        setEditingSubmissionId(null);
         // Reset form
         setFormHeader({
           submissionName: '',
@@ -206,7 +270,7 @@ const DataCollection = () => {
         fetchSubmissions();
       }
     } catch (err) {
-      setFormErrors(err.response?.data?.message || 'Failed to create submission');
+      setFormErrors(err.response?.data?.message || (editingSubmissionId ? 'Failed to update draft submission' : 'Failed to create submission'));
     } finally {
       setSubmitting(false);
     }
@@ -303,7 +367,7 @@ const DataCollection = () => {
 
         {canSubmit && (
           <button
-            onClick={() => setIsNewModalOpen(true)}
+            onClick={handleOpenNewModal}
             className="px-4 py-2 rounded-lg bg-[var(--primary)] text-white text-xs font-semibold hover:opacity-95 transition-opacity flex items-center gap-2 shadow-sm"
           >
             <Plus className="w-4 h-4" />
@@ -397,13 +461,25 @@ const DataCollection = () => {
                       {sub.submittedBy?.name || 'Staff'}
                     </td>
                     <td className="py-3 px-4 text-right whitespace-nowrap">
-                      <button
-                        onClick={() => openDetails(sub._id)}
-                        className="px-2.5 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--primary-light)] hover:text-[var(--primary)] hover:border-[var(--primary)] text-xs font-semibold transition-all inline-flex items-center gap-1.5"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                        <span>Inspect</span>
-                      </button>
+                      <div className="flex items-center justify-end gap-1.5">
+                        {['draft', 'requires_correction'].includes(sub.status) && canSubmit && (
+                          <button
+                            onClick={() => handleOpenEditDraft(sub._id)}
+                            title="Edit Draft"
+                            className="px-2.5 py-1.5 rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-semibold transition-all inline-flex items-center gap-1.5"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                            <span>Edit Draft</span>
+                          </button>
+                        )}
+                        <button
+                          onClick={() => openDetails(sub._id)}
+                          className="px-2.5 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--primary-light)] hover:text-[var(--primary)] hover:border-[var(--primary)] text-xs font-semibold transition-all inline-flex items-center gap-1.5"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>Inspect</span>
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -420,11 +496,20 @@ const DataCollection = () => {
             {/* Modal Header */}
             <div className="p-5 border-b border-[var(--border)] flex items-center justify-between bg-[var(--surface-container)]">
               <div>
-                <h3 className="text-base font-bold text-[var(--text-main)]">New ESG Data Submission Batch</h3>
-                <p className="text-xs text-[var(--text-muted)]">Enter header and metric line items with supporting evidence.</p>
+                <h3 className="text-base font-bold text-[var(--text-main)]">
+                  {editingSubmissionId ? 'Edit Draft ESG Submission' : 'New ESG Data Submission Batch'}
+                </h3>
+                <p className="text-xs text-[var(--text-muted)]">
+                  {editingSubmissionId
+                    ? 'Modify header and line items in this draft before submitting for validation.'
+                    : 'Enter header and metric line items with supporting evidence.'}
+                </p>
               </div>
               <button
-                onClick={() => setIsNewModalOpen(false)}
+                onClick={() => {
+                  setIsNewModalOpen(false);
+                  setEditingSubmissionId(null);
+                }}
                 className="p-1 rounded-lg text-[var(--text-muted)] hover:bg-[var(--surface-high)]"
               >
                 <X className="w-5 h-5" />
@@ -620,7 +705,10 @@ const DataCollection = () => {
               <div className="mt-4 pt-3 border-t border-[var(--border)] flex items-center justify-end gap-2.5">
                 <button
                   type="button"
-                  onClick={() => setIsNewModalOpen(false)}
+                  onClick={() => {
+                    setIsNewModalOpen(false);
+                    setEditingSubmissionId(null);
+                  }}
                   className="px-4 py-2 rounded-lg border border-[var(--border)] text-xs font-semibold hover:bg-[var(--surface-container)] text-[var(--text-muted)]"
                 >
                   Cancel
@@ -632,7 +720,7 @@ const DataCollection = () => {
                   className="px-4 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface-container)] text-[var(--text-main)] text-xs font-semibold hover:bg-[var(--surface-high)] hover:border-[var(--text-muted)] transition-colors flex items-center gap-1.5"
                 >
                   <FileText className="w-3.5 h-3.5 text-[var(--text-muted)]" />
-                  <span>{submitting ? 'Saving...' : 'Save Draft'}</span>
+                  <span>{submitting ? 'Saving...' : editingSubmissionId ? 'Update Draft' : 'Save Draft'}</span>
                 </button>
                 <button
                   type="submit"
@@ -809,14 +897,25 @@ const DataCollection = () => {
               </span>
 
               <div className="flex items-center gap-2">
+                {/* Edit Draft button (if draft or correction) */}
+                {['draft', 'requires_correction'].includes(submissionDetails.submission.status) && canSubmit && (
+                  <button
+                    onClick={() => handleOpenEditDraft(submissionDetails.submission._id)}
+                    className="px-3.5 py-1.5 rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-semibold flex items-center gap-1.5"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                    <span>Edit Draft</span>
+                  </button>
+                )}
+
                 {/* Submit for review button (if draft or correction) */}
                 {['draft', 'requires_correction'].includes(submissionDetails.submission.status) && canSubmit && (
                   <button
                     onClick={() => handleSubmitForReview(submissionDetails.submission._id)}
-                    className="px-3.5 py-1.5 rounded-lg bg-[var(--primary)] text-white text-xs font-semibold hover:opacity-95 flex items-center gap-1.5"
+                    className="px-3.5 py-1.5 rounded-lg bg-[var(--primary)] text-white text-xs font-semibold hover:opacity-95 flex items-center gap-1.5 shadow-sm"
                   >
                     <Send className="w-3.5 h-3.5" />
-                    <span>Submit & Run Validation</span>
+                    <span>Submit for Validation</span>
                   </button>
                 )}
 
