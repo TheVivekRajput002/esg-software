@@ -246,7 +246,14 @@ const Validation = () => {
       {/* KPI Stats Overview */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Pending */}
-        <div className="p-4 rounded-xl bg-[var(--surface)] border border-[var(--border)] shadow-xs flex flex-col justify-between">
+        <div
+          onClick={() => setStatusFilter('pending')}
+          className={`p-4 rounded-xl bg-[var(--surface)] border shadow-xs flex flex-col justify-between cursor-pointer transition-all ${
+            statusFilter === 'pending'
+              ? 'border-blue-500 ring-2 ring-blue-500/20'
+              : 'border-[var(--border)] hover:border-blue-400'
+          }`}
+        >
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">
               Pending Manual Review
@@ -264,7 +271,14 @@ const Validation = () => {
         </div>
 
         {/* Validated */}
-        <div className="p-4 rounded-xl bg-[var(--surface)] border border-[var(--border)] shadow-xs flex flex-col justify-between">
+        <div
+          onClick={() => setStatusFilter('validated')}
+          className={`p-4 rounded-xl bg-[var(--surface)] border shadow-xs flex flex-col justify-between cursor-pointer transition-all ${
+            statusFilter === 'validated'
+              ? 'border-emerald-500 ring-2 ring-emerald-500/20'
+              : 'border-[var(--border)] hover:border-emerald-400'
+          }`}
+        >
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">
               Validated & Verified
@@ -282,7 +296,14 @@ const Validation = () => {
         </div>
 
         {/* Flagged */}
-        <div className="p-4 rounded-xl bg-[var(--surface)] border border-[var(--border)] shadow-xs flex flex-col justify-between">
+        <div
+          onClick={() => setStatusFilter('requires_correction')}
+          className={`p-4 rounded-xl bg-[var(--surface)] border shadow-xs flex flex-col justify-between cursor-pointer transition-all ${
+            statusFilter === 'requires_correction'
+              ? 'border-amber-500 ring-2 ring-amber-500/20'
+              : 'border-[var(--border)] hover:border-amber-400'
+          }`}
+        >
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">
               Flagged for Correction
