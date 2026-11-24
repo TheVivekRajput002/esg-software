@@ -28,7 +28,7 @@ const validationResultSchema = new mongoose.Schema(
     },
     validatedAt: { type: Date, default: Date.now }
   },
-  { timestamps: true }
+  { timestamps: true, suppressReservedKeysWarning: true }
 );
 
 validationResultSchema.index({ submissionId: 1 });
