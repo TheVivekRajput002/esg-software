@@ -1,34 +1,147 @@
-import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
-import { CheckCircle2, AlertTriangle, AlertCircle, Info, X } from 'lucide-react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import {
+  CheckCircle2,
+  AlertTriangle,
+  AlertCircle,
+  Info,
+  X,
+  ShieldCheck,
+  PlusCircle,
+  Send,
+  Check
+} from 'lucide-react';
 
 const ToastContext = createContext(null);
+
+const STORAGE_KEY = 'esg_notifications_history_v1';
+
+const INITIAL_NOTIFICATIONS = [
+  {
+    id: 'seed-notif-1',
+    category: 'verified',
+    title: 'Disclosures Verified',
+    message: 'Scope 1 & Scope 2 disclosures passed validator integrity checks.',
+    timestamp: new Date(Date.now() - 1000 * 60 * 18).toISOString(),
+    read: false
+  },
+  {
+    id: 'seed-notif-2',
+    category: 'submitted',
+    title: 'Submission Disclosed',
+    message: 'FY26-Q3 Corporate Energy & Emissions batch submitted for audit validation.',
+    timestamp: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
+    read: false
+  },
+  {
+    id: 'seed-notif-3',
+    category: 'created',
+    title: 'Corporate Targets Configured',
+    message: 'Multi-year decarbonization & diversity targets established.',
+    timestamp: new Date(Date.now() - 1000 * 60 * 120).toISOString(),
+    read: true
+  },
+  {
+    id: 'seed-notif-4',
+    category: 'success',
+    title: 'Official Report Compiled',
+    message: 'FY 2026–27 Comprehensive ESG Report successfully generated.',
+    timestamp: new Date(Date.now() - 1000 * 60 * 360).toISOString(),
+    read: true
+  }
+];
 
 export const ToastProvider = ({ children }) => {
   const [toasts, setToasts] = useState([]);
   const [confirmDialog, setConfirmDialog] = useState(null);
   const confirmResolveRef = useRef(null);
 
-  // Add toast
-  const addToast = useCallback((type, message, title = '') => {
-    const id = Date.now() + Math.random().toString(36).substring(2, 7);
-    setToasts((prev) => [...prev, { id, type, message, title }]);
+  // Persistent notification history for the Notification Bell
+  const [notifications, setNotifications] = useState(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch (e) {
+      console.warn('Could not read notifications from storage', e);
+    }
+    return INITIAL_NOTIFICATIONS;
+  });
 
-    // Auto dismiss
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(notifications));
+    } catch (e) {
+      console.warn('Could not save notifications to storage', e);
+    }
+  }, [notifications]);
+
+  // Record an event to history and show toast
+  const notify = useCallback((category, message, customTitle) => {
+    const id = Date.now() + Math.random().toString(36).substring(2, 7);
+
+    let defaultTitle = 'Notification';
+    if (category === 'success') defaultTitle = 'Success';
+    if (category === 'verified') defaultTitle = 'Verified';
+    if (category === 'created') defaultTitle = 'Created';
+    if (category === 'submitted') defaultTitle = 'Submitted';
+    if (category === 'error') defaultTitle = 'Error';
+    if (category === 'warning') defaultTitle = 'Warning';
+
+    const title = customTitle || defaultTitle;
+
+    // Add to floating toasts
+    setToasts((prev) => [...prev, { id, category, message, title }]);
+
+    // Auto dismiss toast after 4.5 seconds
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
     }, 4500);
+
+    // Add to permanent notification center log
+    const newNotification = {
+      id,
+      category,
+      title,
+      message,
+      timestamp: new Date().toISOString(),
+      read: false
+    };
+
+    setNotifications((prev) => [newNotification, ...prev]);
   }, []);
 
   const toast = {
-    success: (msg, title) => addToast('success', msg, title),
-    error: (msg, title) => addToast('error', msg, title),
-    warning: (msg, title) => addToast('warning', msg, title),
-    info: (msg, title) => addToast('info', msg, title)
+    success: (msg, title) => notify('success', msg, title || 'Operation Successful'),
+    verified: (msg, title) => notify('verified', msg, title || 'Verified & Approved'),
+    created: (msg, title) => notify('created', msg, title || 'Created Successfully'),
+    submitted: (msg, title) => notify('submitted', msg, title || 'Submitted for Review'),
+    error: (msg, title) => notify('error', msg, title || 'Action Error'),
+    warning: (msg, title) => notify('warning', msg, title || 'Warning Notice'),
+    info: (msg, title) => notify('info', msg, title || 'Information')
   };
 
   const removeToast = useCallback((id) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
+
+  // Notifications management functions
+  const markAsRead = useCallback((id) => {
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
+    );
+  }, []);
+
+  const markAllAsRead = useCallback(() => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  }, []);
+
+  const clearAllNotifications = useCallback(() => {
+    setNotifications([]);
+  }, []);
+
+  const unreadCount = notifications.filter((n) => !n.read).length;
+  const totalCount = notifications.length;
 
   // Custom Promise-based Confirm Dialog (Drop-in replacement for window.confirm)
   const confirm = useCallback(({
@@ -59,34 +172,57 @@ export const ToastProvider = ({ children }) => {
   };
 
   return (
-    <ToastContext.Provider value={{ toast, confirm }}>
+    <ToastContext.Provider
+      value={{
+        toast,
+        confirm,
+        notifications,
+        unreadCount,
+        totalCount,
+        markAsRead,
+        markAllAsRead,
+        clearAllNotifications
+      }}
+    >
       {children}
 
-      {/* Toast Notification Container */}
+      {/* Floating Toast Notification Container */}
       <div className="fixed top-4 right-4 z-[9999] flex flex-col gap-2.5 max-w-sm w-full pointer-events-none px-3">
         {toasts.map((t) => {
-          const isSuccess = t.type === 'success';
-          const isError = t.type === 'error';
-          const isWarning = t.type === 'warning';
+          const isSuccess = t.category === 'success';
+          const isVerified = t.category === 'verified';
+          const isCreated = t.category === 'created';
+          const isSubmitted = t.category === 'submitted';
+          const isError = t.category === 'error';
+          const isWarning = t.category === 'warning';
 
           return (
             <div
               key={t.id}
-              className={`pointer-events-auto flex items-start gap-3 p-3.5 rounded-xl border shadow-lg backdrop-blur-md transition-all duration-300 animate-in fade-in slide-in-from-top-3 ${
-                isSuccess
+              className={`pointer-events-auto flex items-start gap-3 p-3.5 rounded-xl border shadow-xl backdrop-blur-md transition-all duration-300 animate-in fade-in slide-in-from-top-3 ${
+                isVerified
                   ? 'bg-emerald-50/95 border-emerald-300 text-emerald-950 dark:bg-emerald-950/90 dark:border-emerald-700 dark:text-emerald-100'
+                  : isSuccess
+                  ? 'bg-teal-50/95 border-teal-300 text-teal-950 dark:bg-teal-950/90 dark:border-teal-700 dark:text-teal-100'
+                  : isCreated
+                  ? 'bg-blue-50/95 border-blue-300 text-blue-950 dark:bg-blue-950/90 dark:border-blue-700 dark:text-blue-100'
+                  : isSubmitted
+                  ? 'bg-indigo-50/95 border-indigo-300 text-indigo-950 dark:bg-indigo-950/90 dark:border-indigo-700 dark:text-indigo-100'
                   : isError
                   ? 'bg-rose-50/95 border-rose-300 text-rose-950 dark:bg-rose-950/90 dark:border-rose-700 dark:text-rose-100'
                   : isWarning
                   ? 'bg-amber-50/95 border-amber-300 text-amber-950 dark:bg-amber-950/90 dark:border-amber-700 dark:text-amber-100'
-                  : 'bg-blue-50/95 border-blue-300 text-blue-950 dark:bg-blue-950/90 dark:border-blue-700 dark:text-blue-100'
+                  : 'bg-slate-50/95 border-slate-300 text-slate-950 dark:bg-slate-900/90 dark:border-slate-700 dark:text-slate-100'
               }`}
             >
               <div className="shrink-0 mt-0.5">
-                {isSuccess && <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />}
+                {isVerified && <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />}
+                {isSuccess && <CheckCircle2 className="w-4 h-4 text-teal-600 dark:text-teal-400" />}
+                {isCreated && <PlusCircle className="w-4 h-4 text-blue-600 dark:text-blue-400" />}
+                {isSubmitted && <Send className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />}
                 {isError && <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400" />}
                 {isWarning && <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400" />}
-                {!isSuccess && !isError && !isWarning && (
+                {!isSuccess && !isVerified && !isCreated && !isSubmitted && !isError && !isWarning && (
                   <Info className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                 )}
               </div>

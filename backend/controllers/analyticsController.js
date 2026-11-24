@@ -36,14 +36,16 @@ const getAnalyticsOverview = async (req, res, next) => {
       query.reportingPeriodId = reportingPeriodId;
     }
 
-    const [approvedData, targets] = await Promise.all([
+    const [approvedData, targets, allCategories, allMetrics] = await Promise.all([
       EsgData.find(query)
         .populate('metricId')
         .populate('categoryId')
         .populate('reportingPeriodId', 'periodName startDate'),
       EsgTarget.find(req.organizationId ? { organizationId: req.organizationId } : {})
         .populate('metricId', 'name categoryId unit')
-        .sort({ createdAt: -1 })
+        .sort({ createdAt: -1 }),
+      EsgCategory.find({}).sort({ code: 1 }),
+      EsgMetric.find({ status: 'active' })
     ]);
 
     // Build target lookups
@@ -147,12 +149,54 @@ const getAnalyticsOverview = async (req, res, next) => {
       notStarted: targets.filter(t => t.status === 'Not Started').length
     };
 
-    // Pillar comparison for radar/bar charts
-    const pillarComparison = [
-      { pillar: 'Environmental', records: categoryBreakdown.environmental?.count || 0, compliance: 94 },
-      { pillar: 'Social', records: categoryBreakdown.social?.count || 0, compliance: 88 },
-      { pillar: 'Governance', records: categoryBreakdown.governance?.count || 0, compliance: 96 }
-    ];
+    // Map metrics by category ID for completeness calculation
+    const metricsByCategory = {};
+    allMetrics.forEach(m => {
+      const catIdStr = m.categoryId ? m.categoryId.toString() : '';
+      if (!metricsByCategory[catIdStr]) metricsByCategory[catIdStr] = [];
+      metricsByCategory[catIdStr].push(m);
+    });
+
+    // Compute dynamic pillar completeness & audit verification
+    const pillarComparison = allCategories.map(cat => {
+      const catIdStr = cat._id.toString();
+      const catCode = cat.code;
+      const catMetrics = metricsByCategory[catIdStr] || [];
+      const totalMetricsCount = catMetrics.length;
+
+      // Filter approved records for this category
+      const catRecords = approvedData.filter(d => 
+        (d.categoryId?._id ? d.categoryId._id.toString() : d.categoryId?.toString()) === catIdStr
+      );
+
+      // Distinct metrics that have at least 1 approved data entry
+      const reportedMetricIds = new Set(
+        catRecords.map(d => d.metricId?._id ? d.metricId._id.toString() : d.metricId?.toString()).filter(Boolean)
+      );
+      const reportedCount = reportedMetricIds.size;
+      const completenessPercentage = totalMetricsCount > 0 
+        ? Math.round((reportedCount / totalMetricsCount) * 100) 
+        : 0;
+
+      // Verification / Evidence rate: records with evidence attached or marked validated
+      const verifiedRecordsCount = catRecords.filter(d => 
+        (d.evidenceFiles && d.evidenceFiles.length > 0) || d.isValidated === true
+      ).length;
+      const auditVerificationPercentage = catRecords.length > 0
+        ? Math.round((verifiedRecordsCount / catRecords.length) * 100)
+        : 0;
+
+      return {
+        pillar: cat.name,
+        code: catCode,
+        records: catRecords.length,
+        totalMetrics: totalMetricsCount,
+        reportedMetrics: reportedCount,
+        completeness: completenessPercentage,
+        auditVerificationPercentage,
+        compliance: completenessPercentage // For charts / backwards compatibility
+      };
+    });
 
     res.json({
       success: true,

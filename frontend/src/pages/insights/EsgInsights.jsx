@@ -190,7 +190,18 @@ const Analytics = () => {
       </div>
 
       {/* Tab: Cross-Pillar Overview */}
-      {activeTab === 'overview' && (
+      {activeTab === 'overview' && (() => {
+        const envPillar = overviewData?.pillarComparison?.find(p => p.code === 'environmental' || p.pillar?.toLowerCase().includes('env')) || { completeness: 0, reportedMetrics: 0, totalMetrics: 0, auditVerificationPercentage: 0 };
+        const socPillar = overviewData?.pillarComparison?.find(p => p.code === 'social' || p.pillar?.toLowerCase().includes('soc')) || { completeness: 0, reportedMetrics: 0, totalMetrics: 0, auditVerificationPercentage: 0 };
+        const govPillar = overviewData?.pillarComparison?.find(p => p.code === 'governance' || p.pillar?.toLowerCase().includes('gov')) || { completeness: 0, reportedMetrics: 0, totalMetrics: 0, auditVerificationPercentage: 0 };
+        const totalDisclosed = (envPillar.reportedMetrics || 0) + (socPillar.reportedMetrics || 0) + (govPillar.reportedMetrics || 0);
+        const totalRequired = (envPillar.totalMetrics || 0) + (socPillar.totalMetrics || 0) + (govPillar.totalMetrics || 0);
+        const avgCompleteness = totalRequired > 0 ? Math.round((totalDisclosed / totalRequired) * 100) : 0;
+        const avgVerification = overviewData?.pillarComparison?.length
+          ? Math.round((overviewData.pillarComparison.reduce((acc, p) => acc + (p.auditVerificationPercentage || 0), 0)) / overviewData.pillarComparison.length)
+          : 0;
+
+        return (
         <div className="flex flex-col gap-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Chart: Records per Pillar */}
@@ -219,9 +230,14 @@ const Analytics = () => {
             {/* Pillar Compliance Ratings */}
             <div className="p-5 rounded-xl bg-[var(--surface)] border border-[var(--border)] shadow-xs flex flex-col justify-between">
               <div>
-                <h3 className="text-sm font-bold text-[var(--text-main)] mb-1">
-                  Pillar Completeness & Audit Verification
-                </h3>
+                <div className="flex items-center justify-between mb-1">
+                  <h3 className="text-sm font-bold text-[var(--text-main)]">
+                    Pillar Completeness & Audit Verification
+                  </h3>
+                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[var(--surface-container)] text-[var(--text-muted)] border border-[var(--border)]">
+                    {totalDisclosed} / {totalRequired} Metrics Disclosed ({avgCompleteness}%)
+                  </span>
+                </div>
                 <p className="text-[11px] text-[var(--text-muted)] mb-4">
                   Assessment of submitted vs required statutory disclosure indicators
                 </p>
@@ -232,10 +248,18 @@ const Analytics = () => {
                       <span className="flex items-center gap-1.5 text-emerald-700">
                         <Leaf className="w-3.5 h-3.5" /> Environmental Completeness
                       </span>
-                      <span>94%</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-[var(--text-muted)] font-normal">
+                          {envPillar.reportedMetrics}/{envPillar.totalMetrics} disclosed ({envPillar.auditVerificationPercentage}% verified)
+                        </span>
+                        <span className="font-bold text-emerald-700">{envPillar.completeness}%</span>
+                      </div>
                     </div>
                     <div className="w-full bg-[var(--surface-container)] rounded-full h-2 overflow-hidden">
-                      <div className="bg-emerald-600 h-2 rounded-full" style={{ width: '94%' }}></div>
+                      <div
+                        className="bg-emerald-600 h-2 rounded-full transition-all duration-500"
+                        style={{ width: `${Math.min(100, Math.max(0, envPillar.completeness))}%` }}
+                      ></div>
                     </div>
                   </div>
 
@@ -244,10 +268,18 @@ const Analytics = () => {
                       <span className="flex items-center gap-1.5 text-blue-700">
                         <Users className="w-3.5 h-3.5" /> Social Assurance
                       </span>
-                      <span>88%</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-[var(--text-muted)] font-normal">
+                          {socPillar.reportedMetrics}/{socPillar.totalMetrics} disclosed ({socPillar.auditVerificationPercentage}% verified)
+                        </span>
+                        <span className="font-bold text-blue-700">{socPillar.completeness}%</span>
+                      </div>
                     </div>
                     <div className="w-full bg-[var(--surface-container)] rounded-full h-2 overflow-hidden">
-                      <div className="bg-blue-600 h-2 rounded-full" style={{ width: '88%' }}></div>
+                      <div
+                        className="bg-blue-600 h-2 rounded-full transition-all duration-500"
+                        style={{ width: `${Math.min(100, Math.max(0, socPillar.completeness))}%` }}
+                      ></div>
                     </div>
                   </div>
 
@@ -256,10 +288,18 @@ const Analytics = () => {
                       <span className="flex items-center gap-1.5 text-purple-700">
                         <ShieldCheck className="w-3.5 h-3.5" /> Governance Rigor
                       </span>
-                      <span>96%</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-[var(--text-muted)] font-normal">
+                          {govPillar.reportedMetrics}/{govPillar.totalMetrics} disclosed ({govPillar.auditVerificationPercentage}% verified)
+                        </span>
+                        <span className="font-bold text-purple-700">{govPillar.completeness}%</span>
+                      </div>
                     </div>
                     <div className="w-full bg-[var(--surface-container)] rounded-full h-2 overflow-hidden">
-                      <div className="bg-purple-600 h-2 rounded-full" style={{ width: '96%' }}></div>
+                      <div
+                        className="bg-purple-600 h-2 rounded-full transition-all duration-500"
+                        style={{ width: `${Math.min(100, Math.max(0, govPillar.completeness))}%` }}
+                      ></div>
                     </div>
                   </div>
                 </div>
@@ -268,7 +308,11 @@ const Analytics = () => {
               <div className="mt-4 p-3 rounded-lg bg-[var(--surface-container)] text-xs text-[var(--text-muted)] flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-[var(--primary)] shrink-0" />
                 <span>
-                  All aggregation computations are strictly isolated by organization tenant boundary.
+                  {avgVerification > 0 ? (
+                    `Audit Verification: ${avgVerification}% average evidence & audit verification across all disclosed ESG indicators.`
+                  ) : (
+                    'All aggregation computations are strictly isolated by organization tenant boundary.'
+                  )}
                 </span>
               </div>
             </div>
@@ -417,7 +461,8 @@ const Analytics = () => {
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* Tab: Environmental */}
       {activeTab === 'environmental' && (

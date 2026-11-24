@@ -7,17 +7,52 @@ import {
   LogOut,
   ChevronDown,
   User as UserIcon,
-  Zap
+  Zap,
+  ShieldCheck,
+  PlusCircle,
+  Send,
+  CheckCircle2,
+  AlertCircle,
+  AlertTriangle,
+  Info
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
+
+const formatTimeAgo = (isoString) => {
+  if (!isoString) return '';
+  const diff = Date.now() - new Date(isoString).getTime();
+  const minutes = Math.floor(diff / (1000 * 60));
+  if (minutes < 1) return 'Just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+};
 
 const Navbar = ({ onToggleSidebar }) => {
   const { user, role, activePeriod, logout } = useAuth();
+  const {
+    notifications,
+    unreadCount,
+    totalCount,
+    markAsRead,
+    markAllAsRead,
+    clearAllNotifications
+  } = useToast();
+
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showNotificationModal, setShowNotificationModal] = useState(false);
+  const [notifFilter, setNotifFilter] = useState('all'); // 'all' | 'verified' | 'created' | 'submitted' | 'success' | 'error'
 
   const notificationRef = useRef(null);
   const profileRef = useRef(null);
+
+  const filteredNotifications = notifications.filter((n) => {
+    if (notifFilter === 'all') return true;
+    return n.category === notifFilter;
+  });
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -86,34 +121,135 @@ const Navbar = ({ onToggleSidebar }) => {
           <span className="hidden sm:inline">Cheat Login</span>
         </Link>
 
-        {/* Notifications */}
+        {/* Total Notifications Dropdown */}
         <div ref={notificationRef} className="relative">
           <button
             onClick={() => setShowNotificationModal((prev) => !prev)}
             className="relative p-2 rounded-lg text-[var(--text-muted)] hover:bg-[var(--surface-container)] hover:text-[var(--text-main)] transition-colors"
-            title="Notifications"
+            title="Total Notifications"
           >
             <Bell className="w-4 h-4" />
-            <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-[var(--primary)] text-white text-[9px] font-bold">
-              2
-            </span>
+            {totalCount > 0 && (
+              <span className={`absolute -top-0.5 -right-0.5 flex h-4 min-w-[16px] px-1 items-center justify-center rounded-full text-white text-[9px] font-bold shadow-xs ${
+                unreadCount > 0 ? 'bg-[var(--primary)] animate-pulse' : 'bg-slate-500'
+              }`}>
+                {unreadCount > 0 ? unreadCount : totalCount}
+              </span>
+            )}
           </button>
 
           {showNotificationModal && (
-            <div className="absolute right-0 top-12 w-80 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-xl p-3 z-50">
-              <div className="flex items-center justify-between pb-2 border-b border-[var(--border)] mb-2">
-                <span className="text-xs font-bold text-[var(--text-main)]">System Alerts</span>
-                <span className="text-[10px] text-[var(--primary)] font-medium">All caught up</span>
+            <div className="absolute right-0 top-12 w-80 sm:w-96 bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl p-4 z-50 flex flex-col gap-3">
+              {/* Header */}
+              <div className="flex items-center justify-between pb-2 border-b border-[var(--border)]">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-[var(--text-main)]">Total Notifications</span>
+                    <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold bg-[var(--primary)]/10 text-[var(--primary)]">
+                      {totalCount} Total
+                    </span>
+                    {unreadCount > 0 && (
+                      <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
+                        {unreadCount} unread
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 text-[11px]">
+                  {unreadCount > 0 && (
+                    <button
+                      onClick={markAllAsRead}
+                      className="text-[var(--primary)] font-semibold hover:underline"
+                    >
+                      Mark all read
+                    </button>
+                  )}
+                  {totalCount > 0 && (
+                    <button
+                      onClick={clearAllNotifications}
+                      className="text-[var(--text-muted)] hover:text-red-600 transition-colors"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
               </div>
-              <div className="flex flex-col gap-2 text-xs">
-                <div className="p-2 rounded-lg bg-[var(--surface-container)] flex flex-col gap-0.5">
-                  <span className="font-semibold text-emerald-700">Audit Signoff Completed</span>
-                  <span className="text-[var(--text-muted)] text-[11px]">FY26-Q1 Energy disclosure successfully audited.</span>
-                </div>
-                <div className="p-2 rounded-lg bg-[var(--surface-container)] flex flex-col gap-0.5">
-                  <span className="font-semibold text-amber-700">Action Required</span>
-                  <span className="text-[var(--text-muted)] text-[11px]">1 metric entry flagged for correction in Q3 submission.</span>
-                </div>
+
+              {/* Category Filter Pills */}
+              <div className="flex items-center gap-1 overflow-x-auto pb-1 text-[10px] font-semibold border-b border-[var(--border)]/60">
+                {['all', 'verified', 'created', 'submitted', 'success', 'error'].map((cat) => {
+                  const count = cat === 'all'
+                    ? totalCount
+                    : notifications.filter((n) => n.category === cat).length;
+
+                  return (
+                    <button
+                      key={cat}
+                      onClick={() => setNotifFilter(cat)}
+                      className={`px-2 py-0.5 rounded capitalize whitespace-nowrap transition-colors ${
+                        notifFilter === cat
+                          ? 'bg-[var(--primary)] text-white'
+                          : 'bg-[var(--surface-container)] text-[var(--text-muted)] hover:text-[var(--text-main)]'
+                      }`}
+                    >
+                      {cat} ({count})
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Notification List */}
+              <div className="flex flex-col gap-2 max-h-80 overflow-y-auto text-xs pr-0.5">
+                {filteredNotifications.length === 0 ? (
+                  <div className="py-8 text-center text-xs text-[var(--text-muted)] flex flex-col items-center gap-1.5">
+                    <Bell className="w-6 h-6 opacity-40 text-[var(--text-muted)]" />
+                    <span>No notifications matching selected filter.</span>
+                  </div>
+                ) : (
+                  filteredNotifications.map((n) => (
+                    <div
+                      key={n.id}
+                      onClick={() => markAsRead(n.id)}
+                      className={`p-2.5 rounded-xl border transition-all cursor-pointer flex flex-col gap-1 ${
+                        n.read
+                          ? 'bg-[var(--surface-container)]/40 border-[var(--border)] opacity-75'
+                          : 'bg-[var(--surface-container)] border-[var(--border)] shadow-xs'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          {n.category === 'verified' && <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />}
+                          {n.category === 'created' && <PlusCircle className="w-3.5 h-3.5 text-blue-600 shrink-0" />}
+                          {n.category === 'submitted' && <Send className="w-3.5 h-3.5 text-indigo-600 shrink-0" />}
+                          {n.category === 'success' && <CheckCircle2 className="w-3.5 h-3.5 text-teal-600 shrink-0" />}
+                          {n.category === 'error' && <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />}
+                          {n.category === 'warning' && <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />}
+
+                          <span className="font-bold text-xs text-[var(--text-main)] truncate">{n.title}</span>
+                          <span className={`text-[9px] uppercase font-bold px-1.5 py-0.2 rounded border shrink-0 ${
+                            n.category === 'verified' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                            n.category === 'created' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                            n.category === 'submitted' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
+                            n.category === 'success' ? 'bg-teal-50 text-teal-700 border-teal-200' :
+                            n.category === 'error' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                            'bg-amber-50 text-amber-700 border-amber-200'
+                          }`}>
+                            {n.category}
+                          </span>
+                        </div>
+
+                        <span className="text-[10px] text-[var(--text-muted)] whitespace-nowrap shrink-0">
+                          {formatTimeAgo(n.timestamp)}
+                        </span>
+                      </div>
+
+                      <p className="text-[11px] text-[var(--text-muted)] leading-relaxed pl-5">
+                        {n.message}
+                      </p>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           )}
