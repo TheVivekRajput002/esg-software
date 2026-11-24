@@ -18,7 +18,7 @@ const esgReportSchema = new mongoose.Schema(
       enum: ['Comprehensive ESG', 'Environmental Focus', 'Social Responsibility', 'Corporate Governance', 'Executive Summary'],
       default: 'Comprehensive ESG'
     },
-    format: { type: String, enum: ['json', 'pdf', 'csv'], default: 'json' },
+    format: { type: String, enum: ['json', 'pdf', 'csv', 'markdown', 'txt'], default: 'markdown' },
     sections: [{ type: String }],
     generatedBy: {
       type: mongoose.Schema.Types.ObjectId,
