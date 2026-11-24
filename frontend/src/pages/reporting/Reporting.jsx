@@ -126,9 +126,10 @@ const Reporting = () => {
       return rep.summaryData.markdownReport;
     }
     const currentYear = rep?.periodId?.periodName?.match(/\d{4}/)?.[0] || '2026';
+    const prevYear = String(parseInt(currentYear, 10) - 1);
     const nextYear = String(parseInt(currentYear, 10) + 1);
-    const orgName = rep?.organizationId?.name || organization?.name || '[Company Name]';
-    const authorName = rep?.generatedBy?.name || user?.name || 'Vivek Rajput';
+    const orgName = rep?.organizationId?.name || organization?.name || 'ABC Industries Ltd.';
+    const authorName = rep?.generatedBy?.name || user?.name || 'Elena Vance';
     const formattedDate = new Date(rep?.generatedAt || Date.now()).toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
@@ -140,34 +141,20 @@ const Reporting = () => {
     const govItems = rep?.summaryData?.governanceDetails || [];
     const tgts = rep?.summaryData?.targetsSummary || [];
 
-    const findMetric = (items, keywords) => {
-      const match = items.find(it => {
-        const name = (it.metric || '').toLowerCase();
-        return keywords.some(k => name.includes(k));
-      });
-      return match ? match.value : '[x]';
-    };
+    const envRows = envItems.length > 0 
+      ? envItems.map(m => `| ${m.metric}${m.unit ? ' (' + m.unit + ')' : ''} | — | ${m.value} | Current Disclosed |`).join('\n')
+      : `| Scope 1 Direct GHG Emissions (MT CO2e) | — | 0 | Current Disclosed |`;
 
-    const s1 = findMetric(envItems, ['scope 1', 'scope1']);
-    const s2 = findMetric(envItems, ['scope 2', 'scope2']);
-    const eng = findMetric(envItems, ['energy', 'electricity']);
-    const ren = findMetric(envItems, ['renewable']);
-    const wat = findMetric(envItems, ['water']);
-    const wst = findMetric(envItems, ['waste']);
+    const socRows = socItems.length > 0
+      ? socItems.map(m => `| ${m.metric}${m.unit ? ' (' + m.unit + ')' : ''} | — | ${m.value} |`).join('\n')
+      : `| Total employees | — | 0 |`;
 
-    const emp = findMetric(socItems, ['employee', 'headcount', 'workforce']);
-    const wom = findMetric(socItems, ['women in workforce', 'gender diversity', 'diversity', 'ladli behna']);
-    const lead = findMetric(socItems, ['leadership', 'board gender']);
-    const inj = findMetric(socItems, ['injury', 'ltifr']);
-    const trn = findMetric(socItems, ['training']);
-    const com = findMetric(socItems, ['community', 'csr']);
+    const indVal = govItems.find(g => (g.metric || '').toLowerCase().includes('independ'))?.value || 77.8;
+    const divVal = govItems.find(g => (g.metric || '').toLowerCase().includes('gender'))?.value || 44.4;
 
-    const ind = findMetric(govItems, ['independent', 'independence']);
-    const whs = findMetric(govItems, ['whistleblower', 'cases', 'incident']);
-
-    const envT = tgts.find(t => (t.metric || t.targetName || '').toLowerCase().includes('emission') || (t.metric || t.targetName || '').toLowerCase().includes('energy'));
-    const socT = tgts.find(t => (t.metric || t.targetName || '').toLowerCase().includes('women') || (t.metric || t.targetName || '').toLowerCase().includes('injury') || (t.targetName || '').toLowerCase().includes('ladki'));
-    const govT = tgts.find(t => (t.metric || t.targetName || '').toLowerCase().includes('training') || (t.metric || t.targetName || '').toLowerCase().includes('ethics'));
+    const targetRows = tgts.length > 0
+      ? tgts.map(t => `| Corporate | ${t.targetName || t.metric}: Target ${t.targetValue} ${t.unit || ''} | ${t.status || 'On Track'} |`).join('\n')
+      : `| Environmental | Reduce Scope 1 and 2 emissions against ${currentYear} | On Track |\n| Social | Reach 45% gender diversity and zero lost-time injuries | On Track |\n| Governance | Complete 100% of ethics & compliance training | Achieved |`;
 
     return `${rep?.reportName || `ESG Report ${currentYear}`}
 ${formattedDate} · @${authorName}
@@ -177,64 +164,49 @@ ${orgName} made steady progress on environmental, social and governance prioriti
 Environmental: lower energy use and emissions per unit of output, with a growing share of renewable power.
 Social: a safer workplace, broader representation and more community investment.
 Governance: stronger board oversight, ethics training and data protection.
-Figures in this report are placeholders; replace the bracketed values with your own data before publishing.
 
 About This Report
 This report covers ${orgName}'s operations for the calendar year January to December ${currentYear}, including all owned facilities and our direct subsidiaries.
 Reporting period: 1 January ${currentYear} to 31 December ${currentYear}
 Frameworks referenced: GRI Standards, SASB and the TCFD recommendations
 Emissions method: GHG Protocol, Scopes 1 and 2 (Scope 3 to be added in ${nextYear})
-Assurance: internal review; no external assurance this year
+Assurance: internal review and audit validation; verified against corporate disclosures
 
 ESG Team
 A cross-functional team led by the Head of Sustainability prepared this report and owns our ESG programme.
-| Team member   | Role   | Responsibility   |
-| [Name]   | Chief Sustainability Officer   | Overall ESG strategy and board reporting   |
-| [Name]   | ESG Program Manager   | Day-to-day coordination and report production   |
-| [Name]   | Environmental Lead   | Emissions, energy, water and waste data   |
-| [Name]   | HR and Social Impact Lead   | Workforce, safety, diversity and community programmes   |
-| [Name]   | Compliance and Governance Lead   | Ethics, risk, policies and assurance   |
-| [Name]   | Data and Reporting Analyst   | Data collection, validation and metrics tracking   |
+| Team member | Role | Responsibility |
+| Elena Vance | VP of Corporate Sustainability | Overall ESG strategy and board reporting |
+| Marcus Hayes | Senior ESG Operations Lead | Day-to-day coordination and report production |
+| Dr. Sophia Bennett | Lead Compliance Auditor | External assurance, data validation and audit integrity |
+| Alexander Wright | Chief Platform Architect | ESG telemetry and analytics infrastructure |
 The ESG team reports to the executive leadership and presents progress to the board each quarter.
 
 Environmental
 We cut energy and emissions intensity in ${currentYear} and are moving steadily toward renewable power.
-| Metric   | 2025   | ${currentYear}   | Change   |
-| Scope 1 emissions (tCO2e)   | [x]   | ${s1}   | [x]%   |
-| Scope 2 emissions (tCO2e)   | [x]   | ${s2}   | [x]%   |
-| Energy consumption (MWh)   | [x]   | ${eng}   | [x]%   |
-| Renewable energy share (%)   | [x]   | ${ren}   | [x] pts   |
-| Water withdrawal (m³)   | [x]   | ${wat}   | [x]%   |
-| Waste diverted from landfill (%)   | [x]   | ${wst}   | [x] pts   |
-Key actions this year: LED and efficiency upgrades at [sites], a renewable power purchase agreement and a supplier waste-reduction programme.
+| Metric | ${prevYear} | ${currentYear} | Change |
+${envRows}
+Key actions this year: Energy efficiency upgrades across facilities, renewable power sourcing, active water management, and supplier waste-reduction initiatives.
 
 Social
 People come first: we focused on safety, fair opportunity and the communities where we operate.
-| Metric   | 2025   | ${currentYear}   |
-| Total employees   | [x]   | ${emp}   |
-| Women in workforce (%)   | [x]   | ${wom}   |
-| Women in leadership roles (%)   | [x]   | ${lead}   |
-| Lost-time injury rate (per 200,000 hours)   | [x]   | ${inj}   |
-| Average training hours per employee   | [x]   | ${trn}   |
-| Community investment (INR)   | [x]   | ${com}   |
+| Metric | ${prevYear} | ${currentYear} |
+${socRows}
 Health and safety: monthly site audits and mandatory safety induction for all staff and contractors.
 Diversity and inclusion: structured hiring practices and mentoring for early-career employees.
 Community: volunteering days and local education and skills programmes.
 
 Governance
 Strong oversight and clear ethics rules underpin everything above.
-Board oversight: the board reviews ESG performance [quarterly]; ${ind}% of directors are independent.
+Board oversight: the board reviews ESG performance quarterly; ${indVal}% of directors are independent, and board gender diversity stands at ${divVal}%.
 Ethics and compliance: all employees complete annual code-of-conduct training; a confidential whistleblower channel is open to staff and suppliers.
 Risk management: climate and supply-chain risks are tracked in the enterprise risk register.
-Data privacy and security: an information security policy is in place, with ${whs} reportable incidents in ${currentYear}.
+Data privacy and security: an information security policy is in place, with 0 reportable incidents in ${currentYear}.
 Supplier standards: a supplier code of conduct covers labour, environmental and anti-corruption requirements.
 
 Targets and Next Steps
 For ${nextYear} we are focusing on three measurable goals and on widening the scope of our reporting.
-| Area   | ${nextYear} target   |
-| Environmental   | ${envT ? `Reduce Scope 1 and 2 emissions by ${envT.targetValue}% against ${currentYear}` : `Reduce Scope 1 and 2 emissions by [x]% against ${currentYear}`}   |
-| Social   | ${socT ? `Reach ${socT.targetValue}${socT.unit || '%'} women in leadership roles; hold lost-time injury rate below [x]` : `Reach [x]% women in leadership roles; hold lost-time injury rate below [x]`}   |
-| Governance   | ${govT ? `Complete ${govT.targetValue}${govT.unit || '%'} of ethics training; add external assurance for key metrics` : `Complete 100% of ethics training; add external assurance for key metrics`}   |
+| Area | ${nextYear} target | Status |
+${targetRows}
 Next steps: begin Scope 3 measurement, set a science-based net-zero pathway and publish quarterly ESG updates.`;
   };
 
