@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   FileSpreadsheet,
-  Download,
+  FileDown,
   Plus,
   Calendar,
   CheckCircle,
@@ -10,15 +10,15 @@ import {
   X,
   Building,
   Printer,
-  Copy,
-  Check,
-  Code,
   Users,
   Leaf,
   ShieldCheck,
   Target,
-  Share2
+  Share2,
+  Loader2
 } from 'lucide-react';
+import { jsPDF } from 'jspdf';
+import html2canvas from 'html2canvas';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -30,12 +30,12 @@ const Reporting = () => {
   const [periods, setPeriods] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Modals
+  // Modals & PDF Export
   const [isGenerateOpen, setIsGenerateOpen] = useState(false);
   const [selectedReport, setSelectedReport] = useState(null);
   const [isViewOpen, setIsViewOpen] = useState(false);
-  const [viewMode, setViewMode] = useState('document'); // 'document' | 'markdown'
-  const [copied, setCopied] = useState(false);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const reportPrintRef = useRef(null);
 
   // Report Generator Form State
   const [reportForm, setReportForm] = useState({
@@ -43,7 +43,7 @@ const Reporting = () => {
     reportType: 'Comprehensive ESG',
     periodId: '',
     sections: ['Executive Summary', 'About This Report', 'ESG Team', 'Environmental', 'Social', 'Governance', 'Targets and Next Steps'],
-    format: 'markdown'
+    format: 'pdf'
   });
   const [generating, setGenerating] = useState(false);
 
@@ -375,40 +375,215 @@ ${targetRows}
 Next steps: begin Scope 3 measurement, set a science-based net-zero pathway, maintain continuous audit assurance, and publish quarterly ESG updates.`;
   };
 
-  const handleCopyMarkdown = (rep) => {
-    const text = getReportMarkdown(rep);
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const generatePrintableHtml = (markdown, reportTitle) => {
+    if (!markdown) return '';
+    const lines = markdown.split('\n');
+    let html = `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #0f172a; max-width: 800px; margin: 0 auto; padding: 24px 32px; line-height: 1.5; font-size: 13px;">
+    `;
+
+    let tableRows = [];
+    let inTable = false;
+
+    const flushTable = () => {
+      if (tableRows.length > 0) {
+        const headerRow = tableRows[0];
+        const dataRows = tableRows.slice(1).filter(r => !r.every(c => /^[-:\s]+$/.test(c)));
+        html += `
+          <table style="width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 11.5px; border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden;">
+            <thead>
+              <tr style="background-color: #f8fafc; border-bottom: 2px solid #cbd5e1; text-align: left;">
+                ${headerRow.map(col => `<th style="padding: 8px 12px; font-weight: 700; color: #1e293b;">${col.trim()}</th>`).join('')}
+              </tr>
+            </thead>
+            <tbody>
+              ${dataRows.map((row, idx) => `
+                <tr style="border-bottom: 1px solid #f1f5f9; background-color: ${idx % 2 === 0 ? '#ffffff' : '#fcfdfd'};">
+                  ${row.map((cell, ci) => {
+                    const text = cell.trim();
+                    const isAchieved = text.includes('Achieved') && !text.includes('Not Achieved');
+                    const isNotAchieved = text.includes('Not Achieved');
+                    let cellContent = text;
+                    if (isAchieved) {
+                      cellContent = `<span style="background-color: #d1fae5; color: #065f46; padding: 2px 8px; border-radius: 9999px; font-weight: 700; font-size: 10px; border: 1px solid #a7f3d0;">${text}</span>`;
+                    } else if (isNotAchieved) {
+                      cellContent = `<span style="background-color: #fef3c7; color: #92400e; padding: 2px 8px; border-radius: 9999px; font-weight: 700; font-size: 10px; border: 1px solid #fde68a;">${text}</span>`;
+                    }
+                    return `<td style="padding: 8px 12px; color: ${ci === 0 ? '#0f172a' : '#475569'}; font-weight: ${ci === 0 ? '600' : '400'}; ${ci > 0 && !isAchieved && !isNotAchieved ? 'font-family: monospace;' : ''}">${cellContent}</td>`;
+                  }).join('')}
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `;
+        tableRows = [];
+      }
+      inTable = false;
+    };
+
+    lines.forEach((rawLine, idx) => {
+      const line = rawLine.trim();
+      if (line.startsWith('|') && line.endsWith('|')) {
+        inTable = true;
+        const cells = line.split('|').slice(1, -1);
+        tableRows.push(cells);
+        return;
+      } else if (inTable) {
+        flushTable();
+      }
+
+      if (!line) return;
+
+      if (idx === 0) {
+        html += `
+          <div style="border-bottom: 2px solid #059669; padding-bottom: 12px; margin-bottom: 16px;">
+            <h1 style="font-size: 24px; font-weight: 800; color: #0f172a; margin: 0 0 6px 0; letter-spacing: -0.5px;">${line}</h1>
+          </div>
+        `;
+        return;
+      }
+
+      if (idx === 1 && line.includes('·')) {
+        const parts = line.split('·');
+        html += `
+          <div style="font-size: 11px; color: #64748b; font-weight: 500; margin-bottom: 20px; display: flex; gap: 8px;">
+            <span>${parts[0]?.trim()}</span> · <span style="font-weight: 700; color: #059669;">${parts[1]?.trim()}</span>
+          </div>
+        `;
+        return;
+      }
+
+      const isSectionHeader = [
+        'Executive Summary',
+        'About This Report',
+        'ESG Team',
+        'Environmental',
+        'Social',
+        'Governance',
+        'Targets and Next Steps'
+      ].includes(line) || (line.length < 32 && !line.includes(':') && !line.includes('.') && !line.includes(','));
+
+      if (isSectionHeader) {
+        html += `
+          <h2 style="font-size: 15px; font-weight: 700; color: #0f172a; margin: 24px 0 8px 0; padding-bottom: 4px; border-bottom: 1px solid #e2e8f0;">
+            ${line}
+          </h2>
+        `;
+        return;
+      }
+
+      if (line.includes(':') && line.indexOf(':') < 35) {
+        const colonIdx = line.indexOf(':');
+        const label = line.slice(0, colonIdx);
+        const rest = line.slice(colonIdx + 1);
+        html += `
+          <div style="font-size: 12px; line-height: 1.6; color: #334155; margin: 6px 0; padding-left: 10px; border-left: 3px solid #059669;">
+            <strong style="color: #0f172a;">${label}:</strong>${rest}
+          </div>
+        `;
+        return;
+      }
+
+      html += `
+        <p style="font-size: 12px; line-height: 1.6; color: #334155; margin: 8px 0;">${line}</p>
+      `;
+    });
+
+    if (inTable) flushTable();
+    html += `</div>`;
+    return html;
   };
 
-  const downloadReportFile = (rep, format = 'markdown') => {
-    const cleanTitle = (rep.reportName || 'ESG_Report').replace(/[^a-zA-Z0-9_-]/g, '_');
-    if (format === 'json') {
-      const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(
-        JSON.stringify(rep.summaryData, null, 2)
-      )}`;
-      const downloadAnchor = document.createElement('a');
-      downloadAnchor.setAttribute('href', jsonString);
-      downloadAnchor.setAttribute('download', `${cleanTitle}.json`);
-      document.body.appendChild(downloadAnchor);
-      downloadAnchor.click();
-      downloadAnchor.remove();
+  const exportReportToPdf = async (rep) => {
+    try {
+      setIsExportingPdf(true);
+      toast.info('Preparing PDF document export...');
+      const markdown = getReportMarkdown(rep);
+      const cleanTitle = (rep?.reportName || 'ESG_Report').replace(/[^a-zA-Z0-9_-]/g, '_');
+
+      // Create a temporary off-screen container with white background
+      const container = document.createElement('div');
+      container.style.position = 'fixed';
+      container.style.left = '-9999px';
+      container.style.top = '0';
+      container.style.width = '794px'; // standard A4 printable width at 96 DPI
+      container.style.backgroundColor = '#ffffff';
+      container.style.zIndex = '-1000';
+      container.innerHTML = generatePrintableHtml(markdown, rep?.reportName);
+      document.body.appendChild(container);
+
+      // Brief tick for fonts and layout rendering
+      await new Promise(r => setTimeout(r, 120));
+
+      const canvas = await html2canvas(container, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff'
+      });
+
+      document.body.removeChild(container);
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pageWidth = 210;
+      const pageHeight = 297;
+      const imgHeight = (canvas.height * pageWidth) / canvas.width;
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      pdf.addImage(imgData, 'JPEG', 0, position, pageWidth, imgHeight);
+      heightLeft -= pageHeight;
+
+      while (heightLeft > 0) {
+        position -= pageHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'JPEG', 0, position, pageWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+
+      pdf.save(`${cleanTitle}.pdf`);
+      toast.success(`PDF exported: ${cleanTitle}.pdf`);
+    } catch (err) {
+      console.error('PDF export failed:', err);
+      toast.error('Failed to export PDF document.');
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
+
+  const printReport = (rep) => {
+    const markdown = getReportMarkdown(rep);
+    const htmlContent = generatePrintableHtml(markdown, rep?.reportName);
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      toast.warning('Popup blocked. Please allow popups to print report.');
       return;
     }
-
-    const mdContent = getReportMarkdown(rep);
-    const ext = format === 'txt' ? 'txt' : 'md';
-    const mime = format === 'txt' ? 'text/plain' : 'text/markdown';
-    const blob = new Blob([mdContent], { type: `${mime};charset=utf-8` });
-    const url = URL.createObjectURL(blob);
-    const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute('href', url);
-    downloadAnchor.setAttribute('download', `${cleanTitle}.${ext}`);
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
-    URL.revokeObjectURL(url);
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>${rep?.reportName || 'ESG Report'}</title>
+          <style>
+            @page { margin: 15mm; size: A4; }
+            body { margin: 0; padding: 0; background: #fff; }
+            @media print {
+              body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            }
+          </style>
+        </head>
+        <body>
+          ${htmlContent}
+          <script>
+            window.onload = function() {
+              window.print();
+              window.onafterprint = function() { window.close(); };
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
   };
 
   return (
@@ -509,12 +684,13 @@ Next steps: begin Scope 3 measurement, set a science-based net-zero pathway, mai
                         </button>
 
                         <button
-                          onClick={() => downloadReportFile(rep, 'markdown')}
-                          className="px-2.5 py-1 rounded-md bg-[var(--primary)] text-white hover:opacity-90 text-xs font-semibold flex items-center gap-1 shadow-xs"
-                          title="Export Markdown Document (.md)"
+                          onClick={() => exportReportToPdf(rep)}
+                          disabled={isExportingPdf}
+                          className="px-2.5 py-1 rounded-md bg-[var(--primary)] text-white hover:opacity-90 text-xs font-semibold flex items-center gap-1 shadow-xs disabled:opacity-50"
+                          title="Export Official PDF Document (.pdf)"
                         >
-                          <Download className="w-3.5 h-3.5" />
-                          <span>Export (.md)</span>
+                          <FileDown className="w-3.5 h-3.5" />
+                          <span>Export PDF</span>
                         </button>
                       </div>
                     </td>
@@ -648,30 +824,6 @@ Next steps: begin Scope 3 measurement, set a science-based net-zero pathway, mai
               </div>
 
               <div className="flex items-center gap-2">
-                {/* Mode Switcher */}
-                <div className="flex items-center bg-[var(--surface)] border border-[var(--border)] rounded-lg p-0.5 text-xs">
-                  <button
-                    onClick={() => setViewMode('document')}
-                    className={`px-3 py-1 rounded-md font-semibold transition-all ${
-                      viewMode === 'document'
-                        ? 'bg-[var(--primary)] text-white shadow-xs'
-                        : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
-                    }`}
-                  >
-                    Document View
-                  </button>
-                  <button
-                    onClick={() => setViewMode('markdown')}
-                    className={`px-3 py-1 rounded-md font-semibold transition-all ${
-                      viewMode === 'markdown'
-                        ? 'bg-[var(--primary)] text-white shadow-xs'
-                        : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
-                    }`}
-                  >
-                    Raw Markdown
-                  </button>
-                </div>
-
                 <button
                   onClick={() => setIsViewOpen(false)}
                   className="p-1.5 text-[var(--text-muted)] hover:text-[var(--text-main)] rounded-lg hover:bg-[var(--surface-high)]"
@@ -681,73 +833,41 @@ Next steps: begin Scope 3 measurement, set a science-based net-zero pathway, mai
               </div>
             </div>
 
-            {/* Modal Body */}
+            {/* Modal Body: Document View */}
             <div className="p-6 sm:p-8 overflow-y-auto flex-1 text-xs">
-              {viewMode === 'markdown' ? (
-                <div className="relative">
-                  <button
-                    onClick={() => handleCopyMarkdown(selectedReport)}
-                    className="absolute top-3 right-3 px-3 py-1.5 rounded-lg bg-[var(--surface-high)] border border-[var(--border)] text-xs font-semibold hover:bg-[var(--primary)] hover:text-white flex items-center gap-1.5 shadow-xs transition-colors z-10"
-                  >
-                    {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copied ? 'Copied Markdown!' : 'Copy Markdown'}</span>
-                  </button>
-                  <pre className="font-mono text-xs leading-relaxed bg-[var(--surface-container)] p-5 rounded-xl border border-[var(--border)] overflow-x-auto text-[var(--text-main)] whitespace-pre-wrap selection:bg-[var(--primary)] selection:text-white">
-                    {getReportMarkdown(selectedReport)}
-                  </pre>
-                </div>
-              ) : (
-                <div className="flex flex-col gap-1 max-w-3xl mx-auto bg-[var(--surface)] border border-[var(--border)] p-6 sm:p-8 rounded-2xl shadow-sm text-[var(--text-main)] print:border-0 print:p-0">
-                  {renderMarkdownDocument(getReportMarkdown(selectedReport))}
-                </div>
-              )}
+              <div ref={reportPrintRef} className="flex flex-col gap-1 max-w-3xl mx-auto bg-[var(--surface)] border border-[var(--border)] p-6 sm:p-8 rounded-2xl shadow-sm text-[var(--text-main)] print:border-0 print:p-0">
+                {renderMarkdownDocument(getReportMarkdown(selectedReport))}
+              </div>
             </div>
 
-            {/* Modal Footer with Direct Export Options */}
+            {/* Modal Footer with Direct PDF Export & Print Options */}
             <div className="p-4 border-t border-[var(--border)] bg-[var(--surface-container)] flex flex-wrap items-center justify-between gap-3">
               <span className="text-[11px] text-[var(--text-muted)] font-mono">
-                Format: Markdown Document (.md) · Audit-Approved
+                Format: Official PDF Document (.pdf) · Audit-Approved
               </span>
 
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => handleCopyMarkdown(selectedReport)}
-                  className="px-3 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-xs font-semibold hover:border-[var(--primary)] flex items-center gap-1.5 transition-colors"
-                >
-                  {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copied ? 'Copied Markdown!' : 'Copy'}</span>
-                </button>
-
-                <button
-                  onClick={() => window.print()}
-                  className="px-3 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-xs font-semibold hover:border-[var(--primary)] flex items-center gap-1.5 transition-colors"
+                  onClick={() => printReport(selectedReport)}
+                  className="px-3.5 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-xs font-semibold hover:border-[var(--primary)] flex items-center gap-1.5 transition-colors"
+                  title="Print or save as PDF via system print dialog"
                 >
                   <Printer className="w-3.5 h-3.5" />
-                  <span>Print / PDF</span>
+                  <span>Print / Save PDF</span>
                 </button>
 
                 <button
-                  onClick={() => downloadReportFile(selectedReport, 'markdown')}
-                  className="px-3.5 py-1.5 rounded-lg bg-[var(--primary)] text-white text-xs font-semibold hover:opacity-95 flex items-center gap-1.5 shadow-sm"
+                  onClick={() => exportReportToPdf(selectedReport)}
+                  disabled={isExportingPdf}
+                  className="px-4 py-1.5 rounded-lg bg-[var(--primary)] text-white text-xs font-semibold hover:opacity-95 flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+                  title="Download PDF document directly"
                 >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Export (.md)</span>
-                </button>
-
-                <button
-                  onClick={() => downloadReportFile(selectedReport, 'txt')}
-                  className="px-3 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-xs font-semibold hover:border-[var(--primary)] flex items-center gap-1.5"
-                  title="Download as Plain Text Document"
-                >
-                  <span>.txt</span>
-                </button>
-
-                <button
-                  onClick={() => downloadReportFile(selectedReport, 'json')}
-                  className="px-3.5 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-xs font-semibold hover:border-[var(--primary)] flex items-center gap-1.5"
-                  title="Download JSON Payload"
-                >
-                  <span>.json</span>
+                  {isExportingPdf ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <FileDown className="w-3.5 h-3.5" />
+                  )}
+                  <span>{isExportingPdf ? 'Exporting PDF...' : 'Download PDF (.pdf)'}</span>
                 </button>
               </div>
             </div>
