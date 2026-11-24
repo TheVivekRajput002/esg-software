@@ -285,18 +285,10 @@ const TargetManagement = () => {
                   Due: {new Date(t.targetDate).toLocaleDateString()}
                 </span>
 
-                {canManage && (
-                  <button
-                    onClick={() => {
-                      setSelectedTarget(t);
-                      setProgressForm({ recordedValue: t.currentValue || '', note: '' });
-                      setIsProgressOpen(true);
-                    }}
-                    className="px-2.5 py-1 rounded-md border border-[var(--border)] bg-[var(--surface)] hover:border-[var(--primary)] text-[var(--primary)] font-semibold text-[11px] transition-colors"
-                  >
-                    Log Progress Entry
-                  </button>
-                )}
+                <span className="text-[11px] font-medium text-[var(--text-muted)] flex items-center gap-1.5 bg-[var(--surface-container)] px-2 py-0.5 rounded border border-[var(--border)]">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                  <span>Auto-updated via Submissions</span>
+                </span>
               </div>
             </div>
           ))
