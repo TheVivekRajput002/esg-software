@@ -18,7 +18,7 @@ const listUsers = async (req, res, next) => {
     }
 
     const users = await User.find(query)
-      .populate('roleId', 'name code')
+      .populate('roleId', 'name code permissions description isSystemRole')
       .populate('organizationId', 'name')
       .select('-passwordHash')
       .sort({ createdAt: -1 });
@@ -32,9 +32,9 @@ const listUsers = async (req, res, next) => {
 // @route   POST /api/v1/users
 const createUser = async (req, res, next) => {
   try {
-    const { name, email, password, roleCode, organizationId, title, department } = req.body;
+    const { name, email, password, roleCode, roleId, organizationId, title, department } = req.body;
 
-    if (!name || !email || !password || !roleCode) {
+    if (!name || !email || !password || (!roleCode && !roleId)) {
       return res.status(400).json({
         success: false,
         message: 'Name, email, password, and role are required'
@@ -46,9 +46,19 @@ const createUser = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Email is already registered' });
     }
 
-    const role = await Role.findOne({ code: roleCode });
+    let role = null;
+    if (roleId) {
+      role = await Role.findById(roleId);
+    }
+    if (!role && roleCode) {
+      role = await Role.findOne({
+        code: roleCode,
+        $or: [{ organizationId: null }, { organizationId: req.organizationId }]
+      });
+    }
+
     if (!role) {
-      return res.status(400).json({ success: false, message: 'Invalid role code' });
+      return res.status(400).json({ success: false, message: 'Invalid role' });
     }
 
     const targetOrgId = req.role === 'platform_admin' ? organizationId : req.organizationId;
@@ -67,7 +77,9 @@ const createUser = async (req, res, next) => {
       status: 'active'
     });
 
-    const populated = await User.findById(user._id).populate('roleId', 'name code').select('-passwordHash');
+    const populated = await User.findById(user._id)
+      .populate('roleId', 'name code permissions description isSystemRole')
+      .select('-passwordHash');
 
     await logAuditAction({
       organizationId: targetOrgId || req.organizationId,
@@ -89,7 +101,7 @@ const createUser = async (req, res, next) => {
 const getUserById = async (req, res, next) => {
   try {
     const user = await User.findById(req.params.id)
-      .populate('roleId', 'name code')
+      .populate('roleId', 'name code permissions description isSystemRole')
       .populate('organizationId', 'name')
       .select('-passwordHash');
 
@@ -157,10 +169,56 @@ const updateUserStatus = async (req, res, next) => {
   }
 };
 
+// @route   PATCH /api/v1/users/:id/permissions
+const updateUserPermissions = async (req, res, next) => {
+  try {
+    const { customPermissions } = req.body;
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    // Check organization boundary if not platform admin
+    if (req.role !== 'platform_admin' && user.organizationId?.toString() !== req.organizationId?.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Unauthorized to modify permissions for user outside your organization'
+      });
+    }
+
+    user.customPermissions = Array.isArray(customPermissions) ? customPermissions : [];
+    await user.save();
+
+    const updated = await User.findById(user._id)
+      .populate('roleId', 'name code permissions description isSystemRole')
+      .populate('organizationId', 'name')
+      .select('-passwordHash');
+
+    await logAuditAction({
+      organizationId: user.organizationId,
+      actorId: req.user._id,
+      resourceType: 'User',
+      resourceId: user._id,
+      action: 'UPDATE',
+      newValue: { customPermissions: user.customPermissions },
+      reason: `Direct authorization and permissions adjusted for ${user.name}`
+    });
+
+    res.json({
+      success: true,
+      message: `Permissions updated successfully for ${user.name}`,
+      data: updated
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   listUsers,
   createUser,
   getUserById,
   updateUser,
-  updateUserStatus
+  updateUserStatus,
+  updateUserPermissions
 };

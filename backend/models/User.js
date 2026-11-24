@@ -22,6 +22,12 @@ const userSchema = new mongoose.Schema(
       ref: 'Role',
       required: true
     },
+    customPermissions: [
+      {
+        module: { type: String, required: true },
+        actions: [{ type: String }]
+      }
+    ],
     status: {
       type: String,
       enum: ['active', 'inactive', 'suspended'],

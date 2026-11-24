@@ -19,6 +19,7 @@ const auditRoutes = require('./routes/auditRoutes');
 const reportingRoutes = require('./routes/reportingRoutes');
 const organizationRoutes = require('./routes/organizationRoutes');
 const userRoutes = require('./routes/userRoutes');
+const roleRoutes = require('./routes/roleRoutes');
 const settingRoutes = require('./routes/settingRoutes');
 const reportingPeriodRoutes = require('./routes/reportingPeriodRoutes');
 
@@ -54,6 +55,7 @@ app.use('/api/v1/audits', auditRoutes);
 app.use('/api/v1/reports', reportingRoutes);
 app.use('/api/v1/organizations', organizationRoutes);
 app.use('/api/v1/users', userRoutes);
+app.use('/api/v1/roles', roleRoutes);
 app.use('/api/v1/settings', settingRoutes);
 app.use('/api/v1/reporting-periods', reportingPeriodRoutes);
 
