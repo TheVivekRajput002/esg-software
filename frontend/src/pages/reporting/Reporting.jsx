@@ -153,6 +153,9 @@ const Reporting = () => {
                       const text = cell.trim();
                       const isPositive = text.startsWith('+');
                       const isNegative = text.startsWith('-');
+                      const isAchieved = text.includes('Achieved') && !text.includes('Not Achieved');
+                      const isNotAchieved = text.includes('Not Achieved');
+
                       return (
                         <td
                           key={ci}
@@ -162,7 +165,17 @@ const Reporting = () => {
                             isPositive ? 'text-emerald-700 font-bold' : isNegative ? 'text-blue-700 font-bold' : ''
                           }`}
                         >
-                          {text}
+                          {isAchieved ? (
+                            <span className="px-2 py-0.5 rounded-full font-bold text-[10px] bg-emerald-100 text-emerald-800 border border-emerald-300">
+                              {text}
+                            </span>
+                          ) : isNotAchieved ? (
+                            <span className="px-2 py-0.5 rounded-full font-bold text-[10px] bg-amber-100 text-amber-800 border border-amber-300">
+                              {text}
+                            </span>
+                          ) : (
+                            text
+                          )}
                         </td>
                       );
                     })}
@@ -289,9 +302,22 @@ const Reporting = () => {
     const indVal = govItems.find(g => (g.metric || '').toLowerCase().includes('independ'))?.value || 77.8;
     const divVal = govItems.find(g => (g.metric || '').toLowerCase().includes('gender'))?.value || 44.4;
 
+    const govRows = govItems.length > 0
+      ? govItems.map(m => `| ${m.metric}${m.unit ? ' (' + m.unit + ')' : ''} | — | ${m.value} | Current Disclosed |`).join('\n')
+      : `| Board Gender Diversity (%) | — | ${divVal} | Current Disclosed |\n| Independent Board Directors (%) | — | ${indVal} | Current Disclosed |`;
+
     const targetRows = tgts.length > 0
-      ? tgts.map(t => `| Corporate | ${t.targetName || t.metric}: Target ${t.targetValue} ${t.unit || ''} | ${t.status || 'On Track'} |`).join('\n')
-      : `| Environmental | Reduce Scope 1 and 2 emissions against ${currentYear} | On Track |\n| Social | Reach 45% gender diversity and zero lost-time injuries | On Track |\n| Governance | Complete 100% of ethics & compliance training | Achieved |`;
+      ? tgts.map(t => {
+          const isAchieved = t.status === 'Achieved' || (t.progress >= 100);
+          const statusText = isAchieved
+            ? 'Achieved (Goal Met)'
+            : `Not Achieved (${t.status || 'In Progress'} - ${Math.round(t.progress || 0)}% progress)`;
+          const bVal = t.baselineValue !== undefined ? `${t.baselineValue} ${t.unit || ''}` : '—';
+          const cVal = t.currentValue !== undefined && t.currentValue !== null ? `${t.currentValue} ${t.unit || ''}` : '—';
+          const tVal = `${t.targetValue} ${t.unit || ''}`;
+          return `| ${t.targetName || t.metric} | Corporate | ${bVal} | ${cVal} | ${tVal} | 2027 | ${statusText} |`;
+        }).join('\n')
+      : `| Scope 1 & 2 Decarbonization | Environmental | 6000 MT CO2e | 4115 MT CO2e | 4200 MT CO2e | 2030 | Achieved (Goal Met) |\n| 50% Clean Renewable Energy | Environmental | 15 % | 36.5 % | 50 % | 2028 | Not Achieved (On Track - 61% progress) |\n| 45% Gender Diversity in Workforce | Social | 32 % | 41.2 % | 45 % | 2027 | Not Achieved (On Track - 71% progress) |\n| Zero Workplace Lost Time Injuries | Social | 1.5 Incidents/1M hrs | 0.42 Incidents/1M hrs | 0 Incidents/1M hrs | 2026 | Not Achieved (On Track - 72% progress) |\n| 100% Ethics & Compliance Training | Governance | 80 % | 100 % | 100 % | 2026 | Achieved (Goal Met) |`;
 
     return `${rep?.reportName || `ESG Report ${currentYear}`}
 ${formattedDate} · @${authorName}
@@ -333,7 +359,9 @@ Diversity and inclusion: structured hiring practices and mentoring for early-car
 Community: volunteering days and local education and skills programmes.
 
 Governance
-Strong oversight and clear ethics rules underpin everything above.
+Strong oversight, transparent metrics, and clear ethics rules underpin our corporate governance.
+| Metric | ${prevYear} | ${currentYear} | Status / Change |
+${govRows}
 Board oversight: the board reviews ESG performance quarterly; ${indVal}% of directors are independent, and board gender diversity stands at ${divVal}%.
 Ethics and compliance: all employees complete annual code-of-conduct training; a confidential whistleblower channel is open to staff and suppliers.
 Risk management: climate and supply-chain risks are tracked in the enterprise risk register.
@@ -341,10 +369,10 @@ Data privacy and security: an information security policy is in place, with 0 re
 Supplier standards: a supplier code of conduct covers labour, environmental and anti-corruption requirements.
 
 Targets and Next Steps
-For ${nextYear} we are focusing on three measurable goals and on widening the scope of our reporting.
-| Area | ${nextYear} target | Status |
+For ${nextYear} we are focusing on measurable statutory goals and tracking achievement progress across all ESG pillars.
+| Target Name | Pillar | Baseline | Current Value | Target Goal | Target Deadline | Achievement Status |
 ${targetRows}
-Next steps: begin Scope 3 measurement, set a science-based net-zero pathway and publish quarterly ESG updates.`;
+Next steps: begin Scope 3 measurement, set a science-based net-zero pathway, maintain continuous audit assurance, and publish quarterly ESG updates.`;
   };
 
   const handleCopyMarkdown = (rep) => {

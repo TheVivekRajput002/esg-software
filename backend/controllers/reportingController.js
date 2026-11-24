@@ -156,6 +156,23 @@ const buildMarkdownReport = ({
   const whistleblowerMetric = govAgg.find(g => g.code === 'whistleblower_reports' || g.name.toLowerCase().includes('whistle') || g.name.toLowerCase().includes('incident'));
   const whistleblowerCount = whistleblowerMetric ? whistleblowerMetric.value : 0;
 
+  // Governance Metrics Table Rows
+  const govRows = govAgg.map(m => {
+    const key = m.name.toLowerCase().trim();
+    const target = targetMap[m.id] || targetMap[key];
+    const prevVal = prevGovMap[m.id] !== undefined
+      ? prevGovMap[m.id]
+      : (target?.baselineValue !== undefined ? target.baselineValue : '—');
+    const change = computeChange(m.value, prevVal, m.unit);
+    const unitLabel = m.unit ? ` (${m.unit})` : '';
+    return `| ${m.name}${unitLabel} | ${prevVal} | ${m.value} | ${change} |`;
+  });
+
+  if (govRows.length === 0) {
+    govRows.push(`| Board Gender Diversity (%) | — | ${boardDiv} | Current Disclosed |`);
+    govRows.push(`| Independent Board Directors (%) | — | ${boardIndep} | Current Disclosed |`);
+  }
+
   // ESG Team table rows from teamUsers
   let teamRows = [];
   if (teamUsers && teamUsers.length > 0) {
@@ -183,20 +200,33 @@ const buildMarkdownReport = ({
     ];
   }
 
-  // Targets Rows
+  // Targets Rows & Achievement Assessment
   let targetRows = [];
+  const achievedTargets = targets.filter(t => t.status === 'Achieved' || (t.progressPercentage >= 100));
+  const achievedCount = achievedTargets.length;
+  const notAchievedCount = targets.length - achievedCount;
+  const pctAchieved = targets.length > 0 ? Math.round((achievedCount / targets.length) * 100) : 0;
+
   if (targets && targets.length > 0) {
     targetRows = targets.map(t => {
       const catName = t.metricId?.categoryId?.name || (t.targetName.toLowerCase().includes('ghg') || t.targetName.toLowerCase().includes('energy') ? 'Environmental' : (t.targetName.toLowerCase().includes('chai') || t.targetName.toLowerCase().includes('injur') || t.targetName.toLowerCase().includes('gender') || t.targetName.toLowerCase().includes('ladli') ? 'Social' : 'Governance'));
-      const statusText = t.status || 'On Track';
-      const goalDesc = `${t.targetName}: Target ${t.targetValue} ${t.unit} (Baseline: ${t.baselineValue} ${t.unit}) by ${t.targetDate ? new Date(t.targetDate).getFullYear() : nextYear}`;
-      return `| ${catName} | ${goalDesc} | ${statusText} |`;
+      const isAchieved = t.status === 'Achieved' || (t.progressPercentage >= 100);
+      const achievementStatus = isAchieved
+        ? 'Achieved (Goal Met)'
+        : `Not Achieved (${t.status || 'In Progress'} - ${Math.round(t.progressPercentage || 0)}% progress)`;
+      const deadlineYear = t.targetDate ? new Date(t.targetDate).getFullYear() : nextYear;
+      const baseline = `${t.baselineValue} ${t.unit}`;
+      const current = `${t.currentValue !== null ? t.currentValue : '—'} ${t.unit}`;
+      const goal = `${t.targetValue} ${t.unit}`;
+      return `| ${t.targetName} | ${catName} | ${baseline} | ${current} | ${goal} | ${deadlineYear} | ${achievementStatus} |`;
     });
   } else {
     targetRows = [
-      `| Environmental | Reduce Scope 1 and 2 emissions by 30% against ${currentYear} | On Track |`,
-      `| Social | Reach 45% women in workforce and zero lost-time injuries | On Track |`,
-      `| Governance | Complete 100% of ethics & compliance training across all operations | Achieved |`
+      `| Scope 1 & 2 Decarbonization | Environmental | 6000 MT CO2e | 4115 MT CO2e | 4200 MT CO2e | ${nextYear} | Achieved (Goal Met) |`,
+      `| 50% Clean Renewable Energy | Environmental | 15 % | 36.5 % | 50 % | 2028 | Not Achieved (On Track - 61% progress) |`,
+      `| 45% Gender Diversity in Workforce | Social | 32 % | 41.2 % | 45 % | 2027 | Not Achieved (On Track - 71% progress) |`,
+      `| Zero Workplace Lost Time Injuries | Social | 1.5 Incidents/1M hrs | 0.42 Incidents/1M hrs | 0 Incidents/1M hrs | ${currentYear} | Not Achieved (On Track - 72% progress) |`,
+      `| 100% Ethics & Compliance Training | Governance | 80 % | 100 % | 100 % | ${currentYear} | Achieved (Goal Met) |`
     ];
   }
 
@@ -237,7 +267,9 @@ Diversity and inclusion: structured hiring practices and mentoring for early-car
 Community: volunteering days and local education and skills programmes.
 
 Governance
-Strong oversight and clear ethics rules underpin everything above.
+Strong oversight, transparent metrics, and clear ethics rules underpin our corporate governance.
+| Metric | ${prevYear} | ${currentYear} | Status / Change |
+${govRows.join('\n')}
 Board oversight: the board reviews ESG performance quarterly; ${boardIndep}% of directors are independent, and board gender diversity stands at ${boardDiv}%.
 Ethics and compliance: all employees complete annual code-of-conduct training; a confidential whistleblower channel is open to staff and suppliers.
 Risk management: climate and supply-chain risks are tracked in the enterprise risk register.
@@ -245,10 +277,13 @@ Data privacy and security: an information security policy is in place, with ${wh
 Supplier standards: a supplier code of conduct covers labour, environmental and anti-corruption requirements.
 
 Targets and Next Steps
-For ${nextYear} we are focusing on three measurable goals and on widening the scope of our reporting.
-| Area | ${nextYear} target | Status |
+For ${nextYear} we are focusing on measurable statutory goals and tracking achievement progress across all ESG pillars.
+
+Target Performance Summary: ${achievedCount} of ${targets.length || 5} targets Achieved (${pctAchieved}%); ${notAchievedCount} Not Achieved (in progress).
+
+| Target Name | Pillar | Baseline | Current Value | Target Goal | Target Deadline | Achievement Status |
 ${targetRows.join('\n')}
-Next steps: begin Scope 3 measurement, set a science-based net-zero pathway and publish quarterly ESG updates.`;
+Next steps: begin Scope 3 measurement, set a science-based net-zero pathway, maintain continuous audit assurance, and publish quarterly ESG updates.`;
 };
 
 // @route   GET /api/v1/reports
