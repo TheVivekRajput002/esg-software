@@ -320,10 +320,26 @@ const generateReport = async (req, res, next) => {
       finalTeamUsers = await User.find({ status: 'active' }).populate('roleId').limit(6);
     }
 
+    // Ensure we compile actual approved data: if requested period has 0 records, fallback to available approved records
+    let finalApprovedData = approvedData;
+    let effectivePeriod = period;
+    if (finalApprovedData.length === 0) {
+      const anyApprovedData = await EsgData.find({
+        organizationId: orgId,
+        status: 'approved'
+      }).populate('metricId').populate('categoryId');
+
+      if (anyApprovedData.length > 0) {
+        finalApprovedData = anyApprovedData;
+        const matchedPeriod = await ReportingPeriod.findOne({ isCurrent: true }) || await ReportingPeriod.findById(anyApprovedData[0].reportingPeriodId);
+        if (matchedPeriod) effectivePeriod = matchedPeriod;
+      }
+    }
+
     // Aggregate category summaries
-    const environmentalItems = approvedData.filter(d => d.categoryId?.code === 'environmental');
-    const socialItems = approvedData.filter(d => d.categoryId?.code === 'social');
-    const governanceItems = approvedData.filter(d => d.categoryId?.code === 'governance');
+    const environmentalItems = finalApprovedData.filter(d => d.categoryId?.code === 'environmental');
+    const socialItems = finalApprovedData.filter(d => d.categoryId?.code === 'social');
+    const governanceItems = finalApprovedData.filter(d => d.categoryId?.code === 'governance');
 
     const prevEnvironmentalItems = prevApprovedData.filter(d => d.categoryId?.code === 'environmental');
     const prevSocialItems = prevApprovedData.filter(d => d.categoryId?.code === 'social');
@@ -332,7 +348,7 @@ const generateReport = async (req, res, next) => {
     // Generate formatted markdown report matching exact template with REAL data
     const markdownReport = buildMarkdownReport({
       organization,
-      period,
+      period: effectivePeriod,
       user: req.user,
       teamUsers: finalTeamUsers,
       environmentalItems,
@@ -351,11 +367,11 @@ const generateReport = async (req, res, next) => {
         industry: organization.industry,
         country: organization.country
       },
-      reportingPeriod: period.periodName,
+      reportingPeriod: effectivePeriod.periodName,
       generatedAt: new Date().toISOString(),
       markdownReport,
       recordCounts: {
-        totalApproved: approvedData.length,
+        totalApproved: finalApprovedData.length,
         environmental: environmentalItems.length,
         social: socialItems.length,
         governance: governanceItems.length

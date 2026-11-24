@@ -121,8 +121,145 @@ const Reporting = () => {
     }
   };
 
+  // Helper to render compiled Markdown Document into styled rich layout
+  const renderMarkdownDocument = (markdown) => {
+    if (!markdown) return null;
+    const lines = markdown.split('\n');
+    const elements = [];
+    let tableRows = [];
+    let inTable = false;
+    let keyIdx = 0;
+
+    const flushTable = () => {
+      if (tableRows.length > 0) {
+        const headerRow = tableRows[0];
+        const dataRows = tableRows.slice(1).filter(r => !r.every(c => /^[-:\s]+$/.test(c)));
+        elements.push(
+          <div key={`table-${keyIdx++}`} className="border border-[var(--border)] rounded-xl overflow-hidden my-3 shadow-xs">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-[var(--surface-container)] text-[var(--text-muted)] border-b border-[var(--border)]">
+                <tr>
+                  {headerRow.map((col, ci) => (
+                    <th key={ci} className="py-2.5 px-3.5 font-semibold text-[var(--text-main)]">
+                      {col.trim()}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--border)] bg-[var(--surface)]">
+                {dataRows.map((row, ri) => (
+                  <tr key={ri} className="hover:bg-[var(--surface-container)]/50 transition-colors">
+                    {row.map((cell, ci) => {
+                      const text = cell.trim();
+                      const isPositive = text.startsWith('+');
+                      const isNegative = text.startsWith('-');
+                      return (
+                        <td
+                          key={ci}
+                          className={`py-2 px-3.5 ${
+                            ci === 0 ? 'font-semibold text-[var(--text-main)]' : 'font-mono text-[var(--text-muted)]'
+                          } ${
+                            isPositive ? 'text-emerald-700 font-bold' : isNegative ? 'text-blue-700 font-bold' : ''
+                          }`}
+                        >
+                          {text}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+        tableRows = [];
+      }
+      inTable = false;
+    };
+
+    lines.forEach((rawLine, idx) => {
+      const line = rawLine.trim();
+
+      if (line.startsWith('|') && line.endsWith('|')) {
+        inTable = true;
+        const cells = line.split('|').slice(1, -1);
+        tableRows.push(cells);
+        return;
+      } else if (inTable) {
+        flushTable();
+      }
+
+      if (!line) return;
+
+      // Title (first line)
+      if (idx === 0) {
+        elements.push(
+          <div key={`title-${idx}`} className="border-b border-[var(--border)] pb-3 mb-2">
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[var(--text-main)]">
+              {line}
+            </h1>
+          </div>
+        );
+        return;
+      }
+
+      // Subtitle / Date (second line)
+      if (idx === 1 && line.includes('·')) {
+        const parts = line.split('·');
+        elements.push(
+          <div key={`sub-${idx}`} className="text-xs text-[var(--text-muted)] mb-4 font-medium flex items-center gap-2">
+            <span>{parts[0]?.trim()}</span>
+            <span>·</span>
+            <span className="font-semibold text-[var(--primary)]">{parts[1]?.trim()}</span>
+          </div>
+        );
+        return;
+      }
+
+      const isSectionHeader = [
+        'Executive Summary',
+        'About This Report',
+        'ESG Team',
+        'Environmental',
+        'Social',
+        'Governance',
+        'Targets and Next Steps'
+      ].includes(line) || (line.length < 32 && !line.includes(':') && !line.includes('.') && !line.includes(','));
+
+      if (isSectionHeader) {
+        elements.push(
+          <h2 key={`h2-${idx}`} className="text-base font-bold text-[var(--text-main)] mt-5 mb-2 pb-1 border-b border-[var(--border)]/40">
+            {line}
+          </h2>
+        );
+        return;
+      }
+
+      if (line.includes(':')) {
+        const colonIdx = line.indexOf(':');
+        const label = line.slice(0, colonIdx);
+        const rest = line.slice(colonIdx + 1);
+        elements.push(
+          <div key={`col-${idx}`} className="text-xs leading-relaxed text-[var(--text-muted)] my-1.5 pl-2.5 border-l-2 border-[var(--primary)]/40">
+            <strong className="text-[var(--text-main)]">{label}:</strong>{rest}
+          </div>
+        );
+        return;
+      }
+
+      elements.push(
+        <p key={`p-${idx}`} className="text-xs leading-relaxed text-[var(--text-muted)] my-1.5">
+          {line}
+        </p>
+      );
+    });
+
+    if (inTable) flushTable();
+    return elements;
+  };
+
   const getReportMarkdown = (rep) => {
-    if (rep?.summaryData?.markdownReport) {
+    if (rep?.summaryData?.markdownReport && !rep.summaryData.markdownReport.includes('[Name]') && !rep.summaryData.markdownReport.includes('placeholder')) {
       return rep.summaryData.markdownReport;
     }
     const currentYear = rep?.periodId?.periodName?.match(/\d{4}/)?.[0] || '2026';
@@ -400,7 +537,7 @@ Next steps: begin Scope 3 measurement, set a science-based net-zero pathway and 
                   >
                     {periods.map((p) => (
                       <option key={p._id} value={p._id}>
-                        {p.periodName}
+                        {p.periodName} {p.isCurrent ? '★ (Current Active Cycle)' : ''}
                       </option>
                     ))}
                   </select>
@@ -532,261 +669,8 @@ Next steps: begin Scope 3 measurement, set a science-based net-zero pathway and 
                   </pre>
                 </div>
               ) : (
-                <div className="flex flex-col gap-6 max-w-3xl mx-auto bg-[var(--surface)] border border-[var(--border)] p-6 sm:p-8 rounded-2xl shadow-sm text-[var(--text-main)] print:border-0 print:p-0">
-                  {/* Title & Metadata */}
-                  <div className="border-b border-[var(--border)] pb-4">
-                    <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[var(--text-main)]">
-                      {selectedReport.reportName || `ESG Report 2026`}
-                    </h1>
-                    <div className="text-xs text-[var(--text-muted)] mt-1.5 font-medium flex items-center gap-2">
-                      <span>
-                        {new Date(selectedReport.generatedAt || Date.now()).toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric'
-                        })}
-                      </span>
-                      <span>·</span>
-                      <span className="font-semibold text-[var(--primary)]">
-                        @{selectedReport.generatedBy?.name || user?.name || 'Vivek Rajput'}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Executive Summary */}
-                  <div className="flex flex-col gap-2.5">
-                    <h2 className="text-base font-bold text-[var(--text-main)]">Executive Summary</h2>
-                    <p className="text-xs leading-relaxed text-[var(--text-muted)]">
-                      {selectedReport.organizationId?.name || organization?.name || '[Company Name]'} made steady progress on environmental, social and governance priorities in 2026, with the largest gains in energy efficiency and workforce safety. This report summarises our performance, the standards we followed and the goals we are setting for 2027.
-                    </p>
-                    <ul className="list-disc list-inside space-y-1 text-xs text-[var(--text-muted)] pl-1">
-                      <li><strong className="text-[var(--text-main)]">Environmental:</strong> lower energy use and emissions per unit of output, with a growing share of renewable power.</li>
-                      <li><strong className="text-[var(--text-main)]">Social:</strong> a safer workplace, broader representation and more community investment.</li>
-                      <li><strong className="text-[var(--text-main)]">Governance:</strong> stronger board oversight, ethics training and data protection.</li>
-                    </ul>
-                    <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-[11px] italic mt-1">
-                      Figures in this report are placeholders; replace the bracketed values with your own data before publishing.
-                    </div>
-                  </div>
-
-                  {/* About This Report */}
-                  <div className="flex flex-col gap-2.5">
-                    <h2 className="text-base font-bold text-[var(--text-main)]">About This Report</h2>
-                    <p className="text-xs leading-relaxed text-[var(--text-muted)]">
-                      This report covers {selectedReport.organizationId?.name || organization?.name || '[Company Name]'}'s operations for the calendar year January to December 2026, including all owned facilities and our direct subsidiaries.
-                    </p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs bg-[var(--surface-container)] p-3.5 rounded-xl border border-[var(--border)]">
-                      <div><span className="font-semibold text-[var(--text-main)]">Reporting period:</span> 1 January 2026 to 31 December 2026</div>
-                      <div><span className="font-semibold text-[var(--text-main)]">Frameworks referenced:</span> GRI Standards, SASB and the TCFD recommendations</div>
-                      <div><span className="font-semibold text-[var(--text-main)]">Emissions method:</span> GHG Protocol, Scopes 1 and 2 (Scope 3 to be added in 2027)</div>
-                      <div><span className="font-semibold text-[var(--text-main)]">Assurance:</span> internal review; no external assurance this year</div>
-                    </div>
-                  </div>
-
-                  {/* ESG Team */}
-                  <div className="flex flex-col gap-2.5">
-                    <h2 className="text-base font-bold text-[var(--text-main)] flex items-center gap-2">
-                      <Users className="w-4 h-4 text-[var(--primary)]" />
-                      <span>ESG Team</span>
-                    </h2>
-                    <p className="text-xs text-[var(--text-muted)]">
-                      A cross-functional team led by the Head of Sustainability prepared this report and owns our ESG programme.
-                    </p>
-                    <div className="border border-[var(--border)] rounded-xl overflow-hidden">
-                      <table className="w-full text-left text-xs">
-                        <thead className="bg-[var(--surface-container)] text-[var(--text-muted)] border-b border-[var(--border)]">
-                          <tr>
-                            <th className="py-2.5 px-3.5 font-semibold">Team member</th>
-                            <th className="py-2.5 px-3.5 font-semibold">Role</th>
-                            <th className="py-2.5 px-3.5 font-semibold">Responsibility</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-[var(--border)]">
-                          {[
-                            { member: '[Name]', role: 'Chief Sustainability Officer', resp: 'Overall ESG strategy and board reporting' },
-                            { member: '[Name]', role: 'ESG Program Manager', resp: 'Day-to-day coordination and report production' },
-                            { member: '[Name]', role: 'Environmental Lead', resp: 'Emissions, energy, water and waste data' },
-                            { member: '[Name]', role: 'HR and Social Impact Lead', resp: 'Workforce, safety, diversity and community programmes' },
-                            { member: '[Name]', role: 'Compliance and Governance Lead', resp: 'Ethics, risk, policies and assurance' },
-                            { member: '[Name]', role: 'Data and Reporting Analyst', resp: 'Data collection, validation and metrics tracking' }
-                          ].map((row, i) => (
-                            <tr key={i} className="hover:bg-[var(--surface-container)]/50">
-                              <td className="py-2 px-3.5 font-medium text-[var(--text-muted)]">{row.member}</td>
-                              <td className="py-2 px-3.5 font-semibold text-[var(--text-main)]">{row.role}</td>
-                              <td className="py-2 px-3.5 text-[var(--text-muted)]">{row.resp}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                    <p className="text-[11px] text-[var(--text-muted)] italic">
-                      The ESG team reports to the executive leadership and presents progress to the board each quarter.
-                    </p>
-                  </div>
-
-                  {/* Environmental */}
-                  <div className="flex flex-col gap-2.5">
-                    <h2 className="text-base font-bold text-[var(--text-main)] flex items-center gap-2">
-                      <Leaf className="w-4 h-4 text-emerald-600" />
-                      <span>Environmental</span>
-                    </h2>
-                    <p className="text-xs text-[var(--text-muted)]">
-                      We cut energy and emissions intensity in 2026 and are moving steadily toward renewable power.
-                    </p>
-                    <div className="border border-[var(--border)] rounded-xl overflow-hidden">
-                      <table className="w-full text-left text-xs">
-                        <thead className="bg-[var(--surface-container)] text-[var(--text-muted)] border-b border-[var(--border)]">
-                          <tr>
-                            <th className="py-2.5 px-3.5 font-semibold">Metric</th>
-                            <th className="py-2.5 px-3.5 font-semibold">2025</th>
-                            <th className="py-2.5 px-3.5 font-semibold">2026</th>
-                            <th className="py-2.5 px-3.5 font-semibold">Change</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-[var(--border)]">
-                          {[
-                            { metric: 'Scope 1 emissions (tCO2e)', val25: '[x]', val26: selectedReport.summaryData?.environmentalDetails?.find(i => (i.metric||'').toLowerCase().includes('scope 1'))?.value || '[x]', change: '[x]%' },
-                            { metric: 'Scope 2 emissions (tCO2e)', val25: '[x]', val26: selectedReport.summaryData?.environmentalDetails?.find(i => (i.metric||'').toLowerCase().includes('scope 2'))?.value || '[x]', change: '[x]%' },
-                            { metric: 'Energy consumption (MWh)', val25: '[x]', val26: selectedReport.summaryData?.environmentalDetails?.find(i => (i.metric||'').toLowerCase().includes('energy') || (i.metric||'').toLowerCase().includes('electricity'))?.value || '[x]', change: '[x]%' },
-                            { metric: 'Renewable energy share (%)', val25: '[x]', val26: selectedReport.summaryData?.environmentalDetails?.find(i => (i.metric||'').toLowerCase().includes('renewable'))?.value || '[x]', change: '[x] pts' },
-                            { metric: 'Water withdrawal (m³)', val25: '[x]', val26: selectedReport.summaryData?.environmentalDetails?.find(i => (i.metric||'').toLowerCase().includes('water'))?.value || '[x]', change: '[x]%' },
-                            { metric: 'Waste diverted from landfill (%)', val25: '[x]', val26: selectedReport.summaryData?.environmentalDetails?.find(i => (i.metric||'').toLowerCase().includes('waste'))?.value || '[x]', change: '[x] pts' }
-                          ].map((row, i) => (
-                            <tr key={i} className="hover:bg-[var(--surface-container)]/50">
-                              <td className="py-2 px-3.5 font-medium text-[var(--text-main)]">{row.metric}</td>
-                              <td className="py-2 px-3.5 font-mono text-[var(--text-muted)]">{row.val25}</td>
-                              <td className="py-2 px-3.5 font-mono font-bold text-emerald-700">{row.val26}</td>
-                              <td className="py-2 px-3.5 font-mono text-[var(--text-muted)]">{row.change}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                    <p className="text-[11px] text-[var(--text-muted)] leading-relaxed">
-                      <strong className="text-[var(--text-main)]">Key actions this year:</strong> LED and efficiency upgrades at sites, a renewable power purchase agreement and a supplier waste-reduction programme.
-                    </p>
-                  </div>
-
-                  {/* Social */}
-                  <div className="flex flex-col gap-2.5">
-                    <h2 className="text-base font-bold text-[var(--text-main)] flex items-center gap-2">
-                      <Users className="w-4 h-4 text-blue-600" />
-                      <span>Social</span>
-                    </h2>
-                    <p className="text-xs text-[var(--text-muted)]">
-                      People come first: we focused on safety, fair opportunity and the communities where we operate.
-                    </p>
-                    <div className="border border-[var(--border)] rounded-xl overflow-hidden">
-                      <table className="w-full text-left text-xs">
-                        <thead className="bg-[var(--surface-container)] text-[var(--text-muted)] border-b border-[var(--border)]">
-                          <tr>
-                            <th className="py-2.5 px-3.5 font-semibold">Metric</th>
-                            <th className="py-2.5 px-3.5 font-semibold">2025</th>
-                            <th className="py-2.5 px-3.5 font-semibold">2026</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-[var(--border)]">
-                          {[
-                            { metric: 'Total employees', val25: '[x]', val26: selectedReport.summaryData?.socialDetails?.find(i => (i.metric||'').toLowerCase().includes('employee'))?.value || '[x]' },
-                            { metric: 'Women in workforce (%)', val25: '[x]', val26: selectedReport.summaryData?.socialDetails?.find(i => (i.metric||'').toLowerCase().includes('women') || (i.metric||'').toLowerCase().includes('gender') || (i.metric||'').toLowerCase().includes('ladli'))?.value || '[x]' },
-                            { metric: 'Women in leadership roles (%)', val25: '[x]', val26: selectedReport.summaryData?.socialDetails?.find(i => (i.metric||'').toLowerCase().includes('leadership'))?.value || '[x]' },
-                            { metric: 'Lost-time injury rate (per 200,000 hours)', val25: '[x]', val26: selectedReport.summaryData?.socialDetails?.find(i => (i.metric||'').toLowerCase().includes('injury') || (i.metric||'').toLowerCase().includes('ltifr'))?.value || '[x]' },
-                            { metric: 'Average training hours per employee', val25: '[x]', val26: selectedReport.summaryData?.socialDetails?.find(i => (i.metric||'').toLowerCase().includes('training'))?.value || '[x]' },
-                            { metric: 'Community investment (INR)', val25: '[x]', val26: selectedReport.summaryData?.socialDetails?.find(i => (i.metric||'').toLowerCase().includes('community') || (i.metric||'').toLowerCase().includes('csr'))?.value || '[x]' }
-                          ].map((row, i) => (
-                            <tr key={i} className="hover:bg-[var(--surface-container)]/50">
-                              <td className="py-2 px-3.5 font-medium text-[var(--text-main)]">{row.metric}</td>
-                              <td className="py-2 px-3.5 font-mono text-[var(--text-muted)]">{row.val25}</td>
-                              <td className="py-2 px-3.5 font-mono font-bold text-blue-700">{row.val26}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                    <ul className="list-disc list-inside space-y-1 text-xs text-[var(--text-muted)] pl-1">
-                      <li><strong className="text-[var(--text-main)]">Health and safety:</strong> monthly site audits and mandatory safety induction for all staff and contractors.</li>
-                      <li><strong className="text-[var(--text-main)]">Diversity and inclusion:</strong> structured hiring practices and mentoring for early-career employees.</li>
-                      <li><strong className="text-[var(--text-main)]">Community:</strong> volunteering days and local education and skills programmes.</li>
-                    </ul>
-                  </div>
-
-                  {/* Governance */}
-                  <div className="flex flex-col gap-2.5">
-                    <h2 className="text-base font-bold text-[var(--text-main)] flex items-center gap-2">
-                      <ShieldCheck className="w-4 h-4 text-purple-600" />
-                      <span>Governance</span>
-                    </h2>
-                    <p className="text-xs text-[var(--text-muted)]">
-                      Strong oversight and clear ethics rules underpin everything above.
-                    </p>
-                    <ul className="list-disc list-inside space-y-1.5 text-xs text-[var(--text-muted)] pl-1">
-                      <li>
-                        <strong className="text-[var(--text-main)]">Board oversight:</strong> the board reviews ESG performance quarterly;{' '}
-                        <strong className="text-purple-700 font-mono">
-                          {selectedReport.summaryData?.governanceDetails?.find(i => (i.metric||'').toLowerCase().includes('independent'))?.value || '[x]'}%
-                        </strong>{' '}
-                        of directors are independent.
-                      </li>
-                      <li><strong className="text-[var(--text-main)]">Ethics and compliance:</strong> all employees complete annual code-of-conduct training; a confidential whistleblower channel is open to staff and suppliers.</li>
-                      <li><strong className="text-[var(--text-main)]">Risk management:</strong> climate and supply-chain risks are tracked in the enterprise risk register.</li>
-                      <li>
-                        <strong className="text-[var(--text-main)]">Data privacy and security:</strong> an information security policy is in place, with{' '}
-                        <strong className="font-mono text-[var(--text-main)]">
-                          {selectedReport.summaryData?.governanceDetails?.find(i => (i.metric||'').toLowerCase().includes('whistleblower') || (i.metric||'').toLowerCase().includes('cases'))?.value || '[x]'}
-                        </strong>{' '}
-                        reportable incidents in 2026.
-                      </li>
-                      <li><strong className="text-[var(--text-main)]">Supplier standards:</strong> a supplier code of conduct covers labour, environmental and anti-corruption requirements.</li>
-                    </ul>
-                  </div>
-
-                  {/* Targets and Next Steps */}
-                  <div className="flex flex-col gap-2.5">
-                    <h2 className="text-base font-bold text-[var(--text-main)] flex items-center gap-2">
-                      <Target className="w-4 h-4 text-[var(--primary)]" />
-                      <span>Targets and Next Steps</span>
-                    </h2>
-                    <p className="text-xs text-[var(--text-muted)]">
-                      For 2027 we are focusing on three measurable goals and on widening the scope of our reporting.
-                    </p>
-                    <div className="border border-[var(--border)] rounded-xl overflow-hidden">
-                      <table className="w-full text-left text-xs">
-                        <thead className="bg-[var(--surface-container)] text-[var(--text-muted)] border-b border-[var(--border)]">
-                          <tr>
-                            <th className="py-2.5 px-3.5 font-semibold w-1/4">Area</th>
-                            <th className="py-2.5 px-3.5 font-semibold">2027 target</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-[var(--border)]">
-                          <tr className="hover:bg-[var(--surface-container)]/50">
-                            <td className="py-2 px-3.5 font-semibold text-emerald-700">Environmental</td>
-                            <td className="py-2 px-3.5 text-[var(--text-main)]">
-                              {selectedReport.summaryData?.targetsSummary?.find(t => (t.metric||t.targetName||'').toLowerCase().includes('emission'))
-                                ? `Reduce Scope 1 and 2 emissions by ${selectedReport.summaryData.targetsSummary.find(t => (t.metric||t.targetName||'').toLowerCase().includes('emission')).targetValue}% against 2026`
-                                : 'Reduce Scope 1 and 2 emissions by [x]% against 2026'}
-                            </td>
-                          </tr>
-                          <tr className="hover:bg-[var(--surface-container)]/50">
-                            <td className="py-2 px-3.5 font-semibold text-blue-700">Social</td>
-                            <td className="py-2 px-3.5 text-[var(--text-main)]">
-                              {selectedReport.summaryData?.targetsSummary?.find(t => (t.metric||t.targetName||'').toLowerCase().includes('women') || (t.metric||t.targetName||'').toLowerCase().includes('ladki'))
-                                ? `Reach ${selectedReport.summaryData.targetsSummary.find(t => (t.metric||t.targetName||'').toLowerCase().includes('women') || (t.metric||t.targetName||'').toLowerCase().includes('ladki')).targetValue} in leadership roles; hold lost-time injury rate below [x]`
-                                : 'Reach [x]% women in leadership roles; hold lost-time injury rate below [x]'}
-                            </td>
-                          </tr>
-                          <tr className="hover:bg-[var(--surface-container)]/50">
-                            <td className="py-2 px-3.5 font-semibold text-purple-700">Governance</td>
-                            <td className="py-2 px-3.5 text-[var(--text-main)]">
-                              Complete 100% of ethics training; add external assurance for key metrics
-                            </td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-                    <p className="text-[11px] text-[var(--text-muted)] italic">
-                      <strong className="text-[var(--text-main)]">Next steps:</strong> begin Scope 3 measurement, set a science-based net-zero pathway and publish quarterly ESG updates.
-                    </p>
-                  </div>
+                <div className="flex flex-col gap-1 max-w-3xl mx-auto bg-[var(--surface)] border border-[var(--border)] p-6 sm:p-8 rounded-2xl shadow-sm text-[var(--text-main)] print:border-0 print:p-0">
+                  {renderMarkdownDocument(getReportMarkdown(selectedReport))}
                 </div>
               )}
             </div>
