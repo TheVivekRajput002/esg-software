@@ -288,11 +288,6 @@ const TargetManagement = () => {
                   <Calendar className="w-3.5 h-3.5" />
                   Due: {new Date(t.targetDate).toLocaleDateString()}
                 </span>
-
-                <span className="text-[11px] font-medium text-[var(--text-muted)] flex items-center gap-1.5 bg-[var(--surface-container)] px-2 py-0.5 rounded border border-[var(--border)]">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                  <span>Auto-updated via Submissions</span>
-                </span>
               </div>
             </div>
           ))
