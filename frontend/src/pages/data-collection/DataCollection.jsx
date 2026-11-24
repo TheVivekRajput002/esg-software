@@ -290,12 +290,29 @@ const DataCollection = () => {
   };
 
   // Actions
-  const handleApprove = async (subId) => {
-    if (!window.confirm('Are you sure you want to approve this submission? Approved data will become eligible for analytics and official reporting.')) return;
+  const handleApprove = async (subOrId) => {
+    const subId = typeof subOrId === 'object' && subOrId !== null ? subOrId._id : subOrId;
+    const currentSub = (typeof subOrId === 'object' && subOrId !== null)
+      ? subOrId
+      : (submissionDetails?.submission?._id === subId ? submissionDetails.submission : null);
+
+    const isNotValidated = currentSub && (currentSub.status !== 'validated' && currentSub.validationStatus !== 'passed');
+
+    if (isNotValidated) {
+      const confirmUnvalidated = window.confirm(
+        '⚠️ Alert: This submission has NOT been validated yet!\n\nAre you sure you want to approve an unvalidated submission? Approved data will directly roll up into official ESG analytics, reports, and target tracking.'
+      );
+      if (!confirmUnvalidated) return;
+    } else {
+      if (!window.confirm('Are you sure you want to approve this submission? Approved data will become eligible for analytics and official reporting.')) {
+        return;
+      }
+    }
+
     try {
       const res = await api.post(`/submissions/${subId}/approve`, { reason: 'Admin approval' });
       if (res.data.success) {
-        alert('Submission approved successfully!');
+        alert(isNotValidated ? 'Notice: Unvalidated submission has been approved!' : 'Submission approved successfully!');
         setIsDetailsOpen(false);
         fetchSubmissions();
       }
@@ -905,6 +922,24 @@ const DataCollection = () => {
               )}
             </div>
 
+            {/* Notice when approving an unvalidated submission */}
+            {canApprove &&
+              submissionDetails.submission.status !== 'approved' &&
+              submissionDetails.submission.status !== 'validated' &&
+              submissionDetails.submission.validationStatus !== 'passed' && (
+                <div className="mx-5 mb-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-800 flex items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>
+                      <strong>Validation Pending:</strong> This submission has not undergone validation yet.
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-bold tracking-wide uppercase px-2 py-0.5 rounded bg-amber-500/20 text-amber-800 border border-amber-500/30 whitespace-nowrap">
+                    Not Validated
+                  </span>
+                </div>
+            )}
+
             {/* Footer with Workflow Action Buttons */}
             <div className="p-4 border-t border-[var(--border)] flex flex-wrap items-center justify-between gap-3 bg-[var(--surface-container)]">
               <span className="text-[11px] text-[var(--text-muted)]">
@@ -952,12 +987,25 @@ const DataCollection = () => {
                 {/* Final Org Admin Approval button */}
                 {canApprove && submissionDetails.submission.status !== 'approved' && (
                   <button
-                    onClick={() => handleApprove(submissionDetails.submission._id)}
+                    onClick={() => handleApprove(submissionDetails.submission)}
                     disabled={submissionDetails.submission.validationStatus === 'failed'}
-                    className="px-3.5 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-1.5 shadow-sm"
+                    className={`px-3.5 py-1.5 rounded-lg text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-colors disabled:opacity-50 ${
+                      submissionDetails.submission.status !== 'validated' && submissionDetails.submission.validationStatus !== 'passed'
+                        ? 'bg-amber-600 hover:bg-amber-700'
+                        : 'bg-emerald-600 hover:bg-emerald-700'
+                    }`}
                   >
-                    <Check className="w-3.5 h-3.5" />
-                    <span>Approve Submission</span>
+                    {submissionDetails.submission.status !== 'validated' && submissionDetails.submission.validationStatus !== 'passed' ? (
+                      <>
+                        <AlertTriangle className="w-3.5 h-3.5" />
+                        <span>Approve (Unvalidated)</span>
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Approve Submission</span>
+                      </>
+                    )}
                   </button>
                 )}
               </div>
