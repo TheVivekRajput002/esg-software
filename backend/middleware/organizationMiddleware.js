@@ -1,7 +1,10 @@
 const enforceOrganization = (req, res, next) => {
+  if (!req.body) req.body = {};
+  if (!req.query) req.query = {};
+
   // If user is Platform Admin, allow them to view all or specify an organization via header/query
   if (req.role === 'platform_admin') {
-    const requestedOrgId = req.headers['x-organization-id'] || req.query.organizationId || req.body.organizationId;
+    const requestedOrgId = req.headers['x-organization-id'] || req.query?.organizationId || req.body?.organizationId;
     if (requestedOrgId && requestedOrgId !== 'all') {
       req.organizationId = requestedOrgId;
     } else {
