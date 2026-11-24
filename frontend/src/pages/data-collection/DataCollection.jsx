@@ -20,9 +20,11 @@ import {
 } from 'lucide-react';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 
 const DataCollection = () => {
   const { user, role, activePeriod } = useAuth();
+  const { toast, confirm } = useToast();
   const [submissions, setSubmissions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('all');
@@ -115,7 +117,7 @@ const DataCollection = () => {
         setIsDetailsOpen(true);
       }
     } catch (err) {
-      alert('Failed to load submission details');
+      toast.error('Failed to load submission details');
     }
   };
 
@@ -195,7 +197,7 @@ const DataCollection = () => {
         setIsNewModalOpen(true);
       }
     } catch (err) {
-      alert('Failed to load draft submission for editing');
+      toast.error('Failed to load draft submission for editing');
     }
   };
 
@@ -299,44 +301,53 @@ const DataCollection = () => {
     const isNotValidated = currentSub && (currentSub.status !== 'validated' && currentSub.validationStatus !== 'passed');
 
     if (isNotValidated) {
-      const confirmUnvalidated = window.confirm(
-        '⚠️ Alert: This submission has NOT been validated yet!\n\nAre you sure you want to approve an unvalidated submission? Approved data will directly roll up into official ESG analytics, reports, and target tracking.'
-      );
+      const confirmUnvalidated = await confirm({
+        title: 'Approve Unvalidated Submission?',
+        message: 'This submission has NOT been validated yet! Approving unvalidated data will directly roll up into official corporate ESG analytics, reports, and target tracking.\n\nDo you want to proceed and approve this unvalidated submission?',
+        confirmText: 'Approve Unvalidated',
+        cancelText: 'Cancel',
+        type: 'warning'
+      });
       if (!confirmUnvalidated) return;
     } else {
-      if (!window.confirm('Are you sure you want to approve this submission? Approved data will become eligible for analytics and official reporting.')) {
-        return;
-      }
+      const proceed = await confirm({
+        title: 'Approve Submission',
+        message: 'Are you sure you want to approve this submission? Approved data will become eligible for analytics and official reporting.',
+        confirmText: 'Approve',
+        cancelText: 'Cancel',
+        type: 'info'
+      });
+      if (!proceed) return;
     }
 
     try {
       const res = await api.post(`/submissions/${subId}/approve`, { reason: 'Admin approval' });
       if (res.data.success) {
-        alert(isNotValidated ? 'Notice: Unvalidated submission has been approved!' : 'Submission approved successfully!');
+        toast.success(isNotValidated ? 'Notice: Unvalidated submission approved successfully!' : 'Submission approved successfully!');
         setIsDetailsOpen(false);
         fetchSubmissions();
       }
     } catch (err) {
-      alert(err.response?.data?.message || 'Approval failed');
+      toast.error(err.response?.data?.message || 'Approval failed');
     }
   };
 
   const handleReject = async () => {
     if (!actionReason.trim()) {
-      alert('Please state a reason for returning this submission for correction.');
+      toast.warning('Please state a reason for returning this submission for correction.');
       return;
     }
     try {
       const res = await api.post(`/submissions/${selectedSubmission._id}/reject`, { reason: actionReason });
       if (res.data.success) {
-        alert('Submission returned for correction.');
+        toast.info('Submission returned for correction.');
         setIsRejectModalOpen(false);
         setIsDetailsOpen(false);
         setActionReason('');
         fetchSubmissions();
       }
     } catch (err) {
-      alert(err.response?.data?.message || 'Rejection failed');
+      toast.error(err.response?.data?.message || 'Rejection failed');
     }
   };
 
@@ -344,12 +355,12 @@ const DataCollection = () => {
     try {
       const res = await api.post(`/submissions/${subId}/submit`);
       if (res.data.success) {
-        alert('Submission submitted and validated!');
+        toast.success('Submission submitted and validated!');
         setIsDetailsOpen(false);
         fetchSubmissions();
       }
     } catch (err) {
-      alert(err.response?.data?.message || 'Submission failed');
+      toast.error(err.response?.data?.message || 'Submission failed');
     }
   };
 

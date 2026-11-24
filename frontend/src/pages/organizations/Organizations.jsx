@@ -13,9 +13,11 @@ import {
 } from 'lucide-react';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 
 const Organizations = () => {
   const { role, switchOrganization } = useAuth();
+  const { toast, confirm } = useToast();
   const [organizations, setOrganizations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -54,13 +56,14 @@ const Organizations = () => {
   const handleCreate = async (e) => {
     e.preventDefault();
     if (!form.name.trim()) {
-      alert('Organization name is required');
+      toast.warning('Organization name is required');
       return;
     }
 
     try {
       const res = await api.post('/organizations', form);
       if (res.data.success) {
+        toast.success(`Organization ${form.name} created successfully!`);
         setIsCreateOpen(false);
         setForm({
           name: '',
@@ -74,19 +77,28 @@ const Organizations = () => {
         fetchOrgs();
       }
     } catch (err) {
-      alert(err.response?.data?.message || 'Creation failed');
+      toast.error(err.response?.data?.message || 'Creation failed');
     }
   };
 
   const handleArchive = async (orgId) => {
-    if (!window.confirm('Are you sure you want to archive this organization? Existing historical records will be preserved.')) return;
+    const proceed = await confirm({
+      title: 'Archive Organization?',
+      message: 'Are you sure you want to archive this organization? Existing historical records will be preserved.',
+      confirmText: 'Archive',
+      cancelText: 'Cancel',
+      type: 'warning'
+    });
+    if (!proceed) return;
+
     try {
       const res = await api.delete(`/organizations/${orgId}`);
       if (res.data.success) {
+        toast.info('Organization archived successfully');
         fetchOrgs();
       }
     } catch (err) {
-      alert(err.response?.data?.message || 'Archive failed');
+      toast.error(err.response?.data?.message || 'Archive failed');
     }
   };
 

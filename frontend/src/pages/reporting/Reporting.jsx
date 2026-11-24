@@ -21,9 +21,11 @@ import {
 } from 'lucide-react';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 
 const Reporting = () => {
   const { user, organization, role } = useAuth();
+  const { toast } = useToast();
   const [reports, setReports] = useState([]);
   const [periods, setPeriods] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -100,7 +102,7 @@ const Reporting = () => {
   const handleGenerate = async (e) => {
     e.preventDefault();
     if (!reportForm.reportName || !reportForm.periodId) {
-      alert('Please fill in required fields');
+      toast.warning('Please fill in required fields');
       return;
     }
 
@@ -108,11 +110,12 @@ const Reporting = () => {
       setGenerating(true);
       const res = await api.post('/reports/generate', reportForm);
       if (res.data.success) {
+        toast.success(`Official report "${reportForm.reportName}" generated successfully!`);
         setIsGenerateOpen(false);
         fetchReportsAndPeriods();
       }
     } catch (err) {
-      alert(err.response?.data?.message || 'Report generation failed');
+      toast.error(err.response?.data?.message || 'Report generation failed');
     } finally {
       setGenerating(false);
     }

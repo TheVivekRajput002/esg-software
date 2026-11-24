@@ -20,10 +20,12 @@ import {
 } from 'lucide-react';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 import { getProgressBarColor, getProgressTextColor } from '../../utils/progress';
 
 const Validation = () => {
   const { user, role, activePeriod } = useAuth();
+  const { toast } = useToast();
   const [submissions, setSubmissions] = useState([]);
   const [stats, setStats] = useState({
     pendingCount: 0,
@@ -92,7 +94,7 @@ const Validation = () => {
         setIsModalOpen(true);
       }
     } catch (err) {
-      alert('Failed to load submission data for validation');
+      toast.error('Failed to load submission data for validation');
     } finally {
       setProcessing(false);
     }
@@ -128,12 +130,13 @@ const Validation = () => {
         itemIds: Array.from(checkedItemIds)
       });
       if (res.data.success) {
+        toast.success('Submission successfully verified and marked as Validated!');
         setIsModalOpen(false);
         setActiveSubmission(null);
         fetchQueue();
       }
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to confirm validation');
+      toast.error(err.response?.data?.message || 'Failed to confirm validation');
     } finally {
       setProcessing(false);
     }
@@ -160,7 +163,7 @@ const Validation = () => {
 
   const handleFlagForCorrection = async () => {
     if (!activeSubmission?._id || !flagReason.trim()) {
-      alert('Please enter a reason or note explaining why correction is required.');
+      toast.warning('Please enter a reason or note explaining why correction is required.');
       return;
     }
 
@@ -170,6 +173,7 @@ const Validation = () => {
         reason: flagReason
       });
       if (res.data.success) {
+        toast.info('Submission flagged and returned for correction.');
         setIsFlagModalOpen(false);
         setIsModalOpen(false);
         setFlagReason('');
@@ -177,7 +181,7 @@ const Validation = () => {
         fetchQueue();
       }
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to flag submission');
+      toast.error(err.response?.data?.message || 'Failed to flag submission');
     } finally {
       setProcessing(false);
     }

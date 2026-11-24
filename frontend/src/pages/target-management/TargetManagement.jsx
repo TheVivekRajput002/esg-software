@@ -14,10 +14,12 @@ import {
 } from 'lucide-react';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 import { getProgressBarColor, getProgressTextColor, getProgressBadge } from '../../utils/progress';
 
 const TargetManagement = () => {
   const { user, role } = useAuth();
+  const { toast } = useToast();
   const [targets, setTargets] = useState([]);
   const [metrics, setMetrics] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -109,6 +111,7 @@ const TargetManagement = () => {
         targetValue: Number(formData.targetValue)
       });
       if (res.data.success) {
+        toast.success(`Target "${formData.targetName}" created successfully!`);
         setIsCreateOpen(false);
         setFormData({
           metricId: '',
@@ -137,12 +140,13 @@ const TargetManagement = () => {
         note: progressForm.note
       });
       if (res.data.success) {
+        toast.success('Progress entry recorded successfully!');
         setIsProgressOpen(false);
         setProgressForm({ recordedValue: '', note: '' });
         fetchTargets();
       }
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to record progress');
+      toast.error(err.response?.data?.message || 'Failed to record progress');
     }
   };
 

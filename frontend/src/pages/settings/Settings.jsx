@@ -7,9 +7,11 @@ import {
 } from 'lucide-react';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 
 const Settings = () => {
   const { user, organization, role } = useAuth();
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('profile');
   const [savedMessage, setSavedMessage] = useState('');
 
@@ -30,11 +32,10 @@ const Settings = () => {
         title: userTitle
       });
       if (res.data.success) {
-        setSavedMessage('Profile settings updated successfully!');
-        setTimeout(() => setSavedMessage(''), 3000);
+        toast.success('Profile settings updated successfully!');
       }
     } catch (err) {
-      alert('Failed to update profile');
+      toast.error('Failed to update profile');
     }
   };
 
@@ -48,11 +49,10 @@ const Settings = () => {
         country: orgCountry
       });
       if (res.data.success) {
-        setSavedMessage('Organization settings updated successfully!');
-        setTimeout(() => setSavedMessage(''), 3000);
+        toast.success('Organization settings updated successfully!');
       }
     } catch (err) {
-      alert('Failed to update organization');
+      toast.error('Failed to update organization');
     }
   };
 

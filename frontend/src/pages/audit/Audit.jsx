@@ -14,9 +14,11 @@ import {
 } from 'lucide-react';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 
 const Audit = () => {
   const { user, role } = useAuth();
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('engagements'); // 'engagements' | 'findings' | 'logs'
   const [audits, setAudits] = useState([]);
   const [findings, setFindings] = useState([]);
@@ -84,19 +86,20 @@ const Audit = () => {
   const handleCreateFinding = async (e) => {
     e.preventDefault();
     if (!findingForm.auditId || !findingForm.title || !findingForm.description) {
-      alert('Please fill in required fields');
+      toast.warning('Please fill in required fields');
       return;
     }
 
     try {
       const res = await api.post(`/audits/${findingForm.auditId}/findings`, findingForm);
       if (res.data.success) {
+        toast.success('Audit finding recorded successfully!');
         setIsFindingModalOpen(false);
         setFindingForm({ auditId: audits[0]?._id || '', title: '', description: '', severity: 'medium', correctiveAction: '' });
         fetchAuditsAndFindings();
       }
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to record finding');
+      toast.error(err.response?.data?.message || 'Failed to record finding');
     }
   };
 
@@ -120,18 +123,18 @@ const Audit = () => {
           });
           setIsCorrectionModalOpen(true);
         } else {
-          alert('No data items found for audit adjustment.');
+          toast.warning('No data items found for audit adjustment.');
         }
       }
     } catch (err) {
-      alert('Failed to load records for correction');
+      toast.error('Failed to load records for correction');
     }
   };
 
   const handleApplyCorrection = async (e) => {
     e.preventDefault();
     if (!correctionForm.dataId || correctionForm.newValue === '' || !correctionForm.reason.trim()) {
-      alert('dataId, newValue, and a mandatory justification reason are required');
+      toast.warning('Data ID, New Value, and justification reason are required');
       return;
     }
 
@@ -143,12 +146,12 @@ const Audit = () => {
       });
 
       if (res.data.success) {
-        alert('Controlled auditor correction recorded with full non-destructive audit history!');
+        toast.success('Controlled auditor correction recorded with non-destructive audit history!');
         setIsCorrectionModalOpen(false);
         fetchAuditsAndFindings();
       }
     } catch (err) {
-      alert(err.response?.data?.message || 'Correction failed');
+      toast.error(err.response?.data?.message || 'Correction failed');
     }
   };
 

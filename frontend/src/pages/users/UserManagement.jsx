@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 
 const SYSTEM_MODULES = [
   {
@@ -86,6 +87,7 @@ const SYSTEM_MODULES = [
 
 const UserManagement = () => {
   const { user: currentUser, role, organization } = useAuth();
+  const { toast, confirm } = useToast();
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -268,13 +270,12 @@ const UserManagement = () => {
         customPermissions: draftPermissions
       });
       if (res.data.success) {
-        setPermissionSuccess(`Permissions successfully updated for ${selectedUser.name}!`);
+        toast.success(`Permissions successfully updated for ${selectedUser.name}!`);
         setSelectedUser(res.data.data);
         setUsers(prev => prev.map(u => (u._id === selectedUser._id ? res.data.data : u)));
-        setTimeout(() => setPermissionSuccess(''), 3500);
       }
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to update permissions');
+      toast.error(err.response?.data?.message || 'Failed to update permissions');
     } finally {
       setSavingPermissions(false);
     }
@@ -284,13 +285,14 @@ const UserManagement = () => {
   const handleCreateUser = async (e) => {
     e.preventDefault();
     if (!inviteForm.name || !inviteForm.email || !inviteForm.password || !inviteForm.roleId) {
-      alert('Please fill in required fields');
+      toast.warning('Please fill in required fields');
       return;
     }
 
     try {
       const res = await api.post('/users', inviteForm);
       if (res.data.success) {
+        toast.success(`Team member ${inviteForm.name} invited successfully!`);
         setIsInviteModalOpen(false);
         setInviteForm(prev => ({
           ...prev,
@@ -303,7 +305,7 @@ const UserManagement = () => {
         fetchData();
       }
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to create user');
+      toast.error(err.response?.data?.message || 'Failed to create user');
     }
   };
 
@@ -311,13 +313,14 @@ const UserManagement = () => {
   const handleCreateRole = async (e) => {
     e.preventDefault();
     if (!roleForm.name.trim()) {
-      alert('Role Name is required');
+      toast.warning('Role Name is required');
       return;
     }
 
     try {
       const res = await api.post('/roles', roleForm);
       if (res.data.success) {
+        toast.success(`Custom role "${roleForm.name}" created successfully!`);
         setIsCreateRoleOpen(false);
         setRoleForm({
           name: '',
@@ -331,7 +334,7 @@ const UserManagement = () => {
         fetchData();
       }
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to create role');
+      toast.error(err.response?.data?.message || 'Failed to create role');
     }
   };
 
@@ -356,14 +359,23 @@ const UserManagement = () => {
   };
 
   const handleDeleteRole = async (roleId) => {
-    if (!window.confirm('Are you sure you want to delete this custom role?')) return;
+    const proceed = await confirm({
+      title: 'Delete Custom Role?',
+      message: 'Are you sure you want to delete this custom role? This cannot be undone.',
+      confirmText: 'Delete Role',
+      cancelText: 'Cancel',
+      type: 'danger'
+    });
+    if (!proceed) return;
+
     try {
       const res = await api.delete(`/roles/${roleId}`);
       if (res.data.success) {
+        toast.success('Role removed successfully');
         fetchData();
       }
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to delete role');
+      toast.error(err.response?.data?.message || 'Failed to delete role');
     }
   };
 
@@ -372,10 +384,11 @@ const UserManagement = () => {
     try {
       const res = await api.patch(`/users/${userId}/status`, { status: newStatus });
       if (res.data.success) {
+        toast.info(`User status changed to ${newStatus}`);
         fetchData();
       }
     } catch (err) {
-      alert(err.response?.data?.message || 'Status update failed');
+      toast.error(err.response?.data?.message || 'Status update failed');
     }
   };
 

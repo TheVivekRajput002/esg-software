@@ -12,9 +12,11 @@ import {
 } from 'lucide-react';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 
 const EsgManagement = () => {
   const { role } = useAuth();
+  const { toast } = useToast();
   const [metrics, setMetrics] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -64,13 +66,14 @@ const EsgManagement = () => {
   const handleCreateMetric = async (e) => {
     e.preventDefault();
     if (!formData.name || !formData.categoryId || !formData.unit) {
-      alert('Metric Name, Category, and Unit are required');
+      toast.warning('Metric Name, Category, and Unit are required');
       return;
     }
 
     try {
       const res = await api.post('/esg/metrics', formData);
       if (res.data.success) {
+        toast.success(`Metric "${formData.name}" registered successfully!`);
         setIsModalOpen(false);
         setFormData({
           name: '',
@@ -84,7 +87,7 @@ const EsgManagement = () => {
         fetchData();
       }
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to create metric');
+      toast.error(err.response?.data?.message || 'Failed to create metric');
     }
   };
 

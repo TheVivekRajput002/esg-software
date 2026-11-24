@@ -32,10 +32,12 @@ import {
 } from 'lucide-react';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 import { getProgressBarColor, getProgressTextColor } from '../../utils/progress';
 
 const Analytics = () => {
   const { activePeriod } = useAuth();
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'environmental' | 'social' | 'governance'
   const [loading, setLoading] = useState(true);
   const [overviewData, setOverviewData] = useState(null);
@@ -85,9 +87,10 @@ const Analytics = () => {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        toast.success('Analytics CSV export downloaded successfully!');
       }
     } catch (err) {
-      alert('Export failed');
+      toast.error('Export failed');
     }
   };
 
