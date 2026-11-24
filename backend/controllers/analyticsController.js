@@ -1,6 +1,7 @@
 const EsgData = require('../models/EsgData');
 const EsgMetric = require('../models/EsgMetric');
 const EsgCategory = require('../models/EsgCategory');
+const EsgTarget = require('../models/EsgTarget');
 const ReportingPeriod = require('../models/ReportingPeriod');
 
 // Helper to compute aggregation based on metric calculationMethod
@@ -35,10 +36,28 @@ const getAnalyticsOverview = async (req, res, next) => {
       query.reportingPeriodId = reportingPeriodId;
     }
 
-    const approvedData = await EsgData.find(query)
-      .populate('metricId')
-      .populate('categoryId')
-      .populate('reportingPeriodId', 'periodName startDate');
+    const [approvedData, targets] = await Promise.all([
+      EsgData.find(query)
+        .populate('metricId')
+        .populate('categoryId')
+        .populate('reportingPeriodId', 'periodName startDate'),
+      EsgTarget.find(req.organizationId ? { organizationId: req.organizationId } : {})
+        .populate('metricId', 'name categoryId unit')
+        .sort({ createdAt: -1 })
+    ]);
+
+    // Build target lookups
+    const targetMapByMetricId = {};
+    const targetMapByMetricName = {};
+    targets.forEach(t => {
+      if (t.metricId) {
+        const idStr = t.metricId._id ? t.metricId._id.toString() : t.metricId.toString();
+        targetMapByMetricId[idStr] = t;
+        if (t.metricId.name) {
+          targetMapByMetricName[t.metricId.name.toLowerCase().trim()] = t;
+        }
+      }
+    });
 
     // Group by category and metric
     const categoryBreakdown = {
@@ -58,6 +77,7 @@ const getAnalyticsOverview = async (req, res, next) => {
       const metricName = item.metricId?.name || 'Unknown';
       if (!categoryBreakdown[catCode].metrics[metricName]) {
         categoryBreakdown[catCode].metrics[metricName] = {
+          metricId: item.metricId?._id,
           name: metricName,
           unit: item.unit,
           calculationMethod: item.metricId?.calculationMethod || 'sum',
@@ -68,15 +88,32 @@ const getAnalyticsOverview = async (req, res, next) => {
       categoryBreakdown[catCode].metrics[metricName].values.push(item.value);
     });
 
-    // Compute aggregated value for each metric
+    // Compute aggregated value for each metric and link target
     const formattedCategories = Object.keys(categoryBreakdown).map(key => {
       const cat = categoryBreakdown[key];
-      const metricList = Object.values(cat.metrics).map(m => ({
-        name: m.name,
-        unit: m.unit,
-        value: aggregateValues(m.values, m.calculationMethod),
-        entries: m.values.length
-      }));
+      const metricList = Object.values(cat.metrics).map(m => {
+        const idStr = m.metricId ? m.metricId.toString() : '';
+        const targetObj = (idStr && targetMapByMetricId[idStr]) || targetMapByMetricName[m.name.toLowerCase().trim()];
+        const actualVal = aggregateValues(m.values, m.calculationMethod);
+
+        return {
+          name: m.name,
+          unit: m.unit,
+          value: actualVal,
+          entries: m.values.length,
+          target: targetObj ? {
+            targetId: targetObj._id,
+            targetName: targetObj.targetName,
+            targetValue: targetObj.targetValue,
+            baselineValue: targetObj.baselineValue,
+            currentValue: targetObj.currentValue !== null ? targetObj.currentValue : actualVal,
+            progressPercentage: targetObj.progressPercentage,
+            status: targetObj.status,
+            direction: targetObj.direction,
+            targetDate: targetObj.targetDate
+          } : null
+        };
+      });
 
       return {
         key,
@@ -85,6 +122,30 @@ const getAnalyticsOverview = async (req, res, next) => {
         metrics: metricList
       };
     });
+
+    // Format targets list and health statistics
+    const targetsList = targets.map(t => ({
+      _id: t._id,
+      targetName: t.targetName,
+      metricName: t.metricId?.name || 'General Metric',
+      baselineValue: t.baselineValue,
+      currentValue: t.currentValue !== null ? t.currentValue : t.baselineValue,
+      targetValue: t.targetValue,
+      progressPercentage: t.progressPercentage || 0,
+      unit: t.unit,
+      status: t.status,
+      direction: t.direction,
+      targetDate: t.targetDate
+    }));
+
+    const targetStats = {
+      total: targets.length,
+      achieved: targets.filter(t => t.status === 'Achieved').length,
+      onTrack: targets.filter(t => t.status === 'On Track').length,
+      atRisk: targets.filter(t => t.status === 'At Risk').length,
+      overdue: targets.filter(t => t.status === 'Overdue').length,
+      notStarted: targets.filter(t => t.status === 'Not Started').length
+    };
 
     // Pillar comparison for radar/bar charts
     const pillarComparison = [
@@ -98,7 +159,9 @@ const getAnalyticsOverview = async (req, res, next) => {
       data: {
         totalApprovedRecords: approvedData.length,
         categories: formattedCategories,
-        pillarComparison
+        pillarComparison,
+        targetsList,
+        targetStats
       }
     });
   } catch (error) {
@@ -118,10 +181,20 @@ const getEnvironmentalAnalytics = async (req, res, next) => {
       query.reportingPeriodId = req.query.reportingPeriodId;
     }
 
-    const data = await EsgData.find(query)
-      .populate('metricId')
-      .populate('reportingPeriodId', 'periodName startDate')
-      .sort({ createdAt: 1 });
+    const [data, targets] = await Promise.all([
+      EsgData.find(query)
+        .populate('metricId')
+        .populate('reportingPeriodId', 'periodName startDate')
+        .sort({ createdAt: 1 }),
+      EsgTarget.find(req.organizationId ? { organizationId: req.organizationId } : {})
+        .populate('metricId', 'name')
+    ]);
+
+    const targetMap = {};
+    targets.forEach(t => {
+      if (t.metricId?._id) targetMap[t.metricId._id.toString()] = t;
+      if (t.metricId?.name) targetMap[t.metricId.name.toLowerCase().trim()] = t;
+    });
 
     // Group by metric and format for Recharts
     const metricGroups = {};
@@ -129,6 +202,7 @@ const getEnvironmentalAnalytics = async (req, res, next) => {
       const name = d.metricId?.name || 'General Metric';
       if (!metricGroups[name]) {
         metricGroups[name] = {
+          metricId: d.metricId?._id,
           metric: name,
           unit: d.unit,
           calculationMethod: d.metricId?.calculationMethod || 'sum',
@@ -143,12 +217,24 @@ const getEnvironmentalAnalytics = async (req, res, next) => {
       });
     });
 
-    const metricsSummary = Object.values(metricGroups).map(g => ({
-      metric: g.metric,
-      unit: g.unit,
-      aggregatedValue: aggregateValues(g.values, g.calculationMethod),
-      timeline: g.timeline
-    }));
+    const metricsSummary = Object.values(metricGroups).map(g => {
+      const idStr = g.metricId ? g.metricId.toString() : '';
+      const targetObj = (idStr && targetMap[idStr]) || targetMap[g.metric.toLowerCase().trim()];
+      return {
+        metric: g.metric,
+        unit: g.unit,
+        aggregatedValue: aggregateValues(g.values, g.calculationMethod),
+        timeline: g.timeline,
+        target: targetObj ? {
+          targetId: targetObj._id,
+          targetName: targetObj.targetName,
+          targetValue: targetObj.targetValue,
+          progressPercentage: targetObj.progressPercentage,
+          status: targetObj.status,
+          direction: targetObj.direction
+        } : null
+      };
+    });
 
     res.json({ success: true, data: metricsSummary });
   } catch (error) {
@@ -168,16 +254,27 @@ const getSocialAnalytics = async (req, res, next) => {
       query.reportingPeriodId = req.query.reportingPeriodId;
     }
 
-    const data = await EsgData.find(query)
-      .populate('metricId')
-      .populate('reportingPeriodId', 'periodName startDate')
-      .sort({ createdAt: 1 });
+    const [data, targets] = await Promise.all([
+      EsgData.find(query)
+        .populate('metricId')
+        .populate('reportingPeriodId', 'periodName startDate')
+        .sort({ createdAt: 1 }),
+      EsgTarget.find(req.organizationId ? { organizationId: req.organizationId } : {})
+        .populate('metricId', 'name')
+    ]);
+
+    const targetMap = {};
+    targets.forEach(t => {
+      if (t.metricId?._id) targetMap[t.metricId._id.toString()] = t;
+      if (t.metricId?.name) targetMap[t.metricId.name.toLowerCase().trim()] = t;
+    });
 
     const metricGroups = {};
     data.forEach(d => {
       const name = d.metricId?.name || 'General Metric';
       if (!metricGroups[name]) {
         metricGroups[name] = {
+          metricId: d.metricId?._id,
           metric: name,
           unit: d.unit,
           calculationMethod: d.metricId?.calculationMethod || 'average',
@@ -192,12 +289,24 @@ const getSocialAnalytics = async (req, res, next) => {
       });
     });
 
-    const metricsSummary = Object.values(metricGroups).map(g => ({
-      metric: g.metric,
-      unit: g.unit,
-      aggregatedValue: aggregateValues(g.values, g.calculationMethod),
-      timeline: g.timeline
-    }));
+    const metricsSummary = Object.values(metricGroups).map(g => {
+      const idStr = g.metricId ? g.metricId.toString() : '';
+      const targetObj = (idStr && targetMap[idStr]) || targetMap[g.metric.toLowerCase().trim()];
+      return {
+        metric: g.metric,
+        unit: g.unit,
+        aggregatedValue: aggregateValues(g.values, g.calculationMethod),
+        timeline: g.timeline,
+        target: targetObj ? {
+          targetId: targetObj._id,
+          targetName: targetObj.targetName,
+          targetValue: targetObj.targetValue,
+          progressPercentage: targetObj.progressPercentage,
+          status: targetObj.status,
+          direction: targetObj.direction
+        } : null
+      };
+    });
 
     res.json({ success: true, data: metricsSummary });
   } catch (error) {
@@ -217,16 +326,27 @@ const getGovernanceAnalytics = async (req, res, next) => {
       query.reportingPeriodId = req.query.reportingPeriodId;
     }
 
-    const data = await EsgData.find(query)
-      .populate('metricId')
-      .populate('reportingPeriodId', 'periodName startDate')
-      .sort({ createdAt: 1 });
+    const [data, targets] = await Promise.all([
+      EsgData.find(query)
+        .populate('metricId')
+        .populate('reportingPeriodId', 'periodName startDate')
+        .sort({ createdAt: 1 }),
+      EsgTarget.find(req.organizationId ? { organizationId: req.organizationId } : {})
+        .populate('metricId', 'name')
+    ]);
+
+    const targetMap = {};
+    targets.forEach(t => {
+      if (t.metricId?._id) targetMap[t.metricId._id.toString()] = t;
+      if (t.metricId?.name) targetMap[t.metricId.name.toLowerCase().trim()] = t;
+    });
 
     const metricGroups = {};
     data.forEach(d => {
       const name = d.metricId?.name || 'General Metric';
       if (!metricGroups[name]) {
         metricGroups[name] = {
+          metricId: d.metricId?._id,
           metric: name,
           unit: d.unit,
           calculationMethod: d.metricId?.calculationMethod || 'percentage',
@@ -241,12 +361,24 @@ const getGovernanceAnalytics = async (req, res, next) => {
       });
     });
 
-    const metricsSummary = Object.values(metricGroups).map(g => ({
-      metric: g.metric,
-      unit: g.unit,
-      aggregatedValue: aggregateValues(g.values, g.calculationMethod),
-      timeline: g.timeline
-    }));
+    const metricsSummary = Object.values(metricGroups).map(g => {
+      const idStr = g.metricId ? g.metricId.toString() : '';
+      const targetObj = (idStr && targetMap[idStr]) || targetMap[g.metric.toLowerCase().trim()];
+      return {
+        metric: g.metric,
+        unit: g.unit,
+        aggregatedValue: aggregateValues(g.values, g.calculationMethod),
+        timeline: g.timeline,
+        target: targetObj ? {
+          targetId: targetObj._id,
+          targetName: targetObj.targetName,
+          targetValue: targetObj.targetValue,
+          progressPercentage: targetObj.progressPercentage,
+          status: targetObj.status,
+          direction: targetObj.direction
+        } : null
+      };
+    });
 
     res.json({ success: true, data: metricsSummary });
   } catch (error) {
