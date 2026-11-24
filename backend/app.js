@@ -3,6 +3,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const path = require('path');
+const fs = require('fs');
 
 const { notFound, errorHandler } = require('./middleware/errorMiddleware');
 
@@ -56,15 +57,27 @@ app.use('/api/v1/users', userRoutes);
 app.use('/api/v1/settings', settingRoutes);
 app.use('/api/v1/reporting-periods', reportingPeriodRoutes);
 
-// Serve static frontend
+// Serve static frontend if available
 const frontendDist = path.join(__dirname, '../frontend/dist');
-app.use(express.static(frontendDist));
+const indexHtml = path.join(frontendDist, 'index.html');
+
+if (fs.existsSync(frontendDist)) {
+  app.use(express.static(frontendDist));
+}
 
 app.use((req, res, next) => {
   if (req.originalUrl.startsWith('/api')) {
     return next();
   }
-  res.sendFile(path.join(frontendDist, 'index.html'));
+  if (fs.existsSync(indexHtml)) {
+    return res.sendFile(indexHtml);
+  }
+  res.status(200).json({
+    status: 'online',
+    message: 'ESG Management Platform REST API is running.',
+    health: '/api/health',
+    version: '1.1'
+  });
 });
 
 // Error handlers

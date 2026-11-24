@@ -1,0 +1,11 @@
+{
+  "name": "esg-software",
+  "version": "1.0.0",
+  "description": "Full-stack ESG Management Platform",
+  "scripts": {
+    "install:all": "cd backend && npm install && cd ../frontend && npm install",
+    "build": "cd backend && npm install && cd ../frontend && npm install && npm run build",
+    "build:seed": "cd backend && npm install && npm run seed && cd ../frontend && npm install && npm run build",
+    "start": "cd backend && npm start"
+  }
+}
